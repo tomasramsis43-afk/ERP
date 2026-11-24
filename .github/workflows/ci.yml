@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: erp
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: erp_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U erp -d erp_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://erp:ci_only_password@localhost:5432/erp_test?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-not-for-production
+      JWT_REFRESH_SECRET: ci-refresh-secret-not-for-production
+      SEED_ADMIN_EMAIL: admin@ci.local
+      SEED_ADMIN_PASSWORD: ci-admin-password-123
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build shared packages
+        run: npm run build --workspace @erp/shared-types --workspace @erp/accounting-engine
+      - name: Generate Prisma client
+        run: npx prisma generate
+        working-directory: apps/api
+      - name: Apply schema and seed
+        run: |
+          npx prisma db push --skip-generate
+          npx ts-node prisma/seed.ts
+        working-directory: apps/api
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
