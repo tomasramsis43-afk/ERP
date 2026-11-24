@@ -109,6 +109,8 @@ export class JournalPostingService {
             debit: l.debit.toFixed(2),
             credit: l.credit.toFixed(2),
             description: l.description,
+            partyType: l.partyType,
+            partyId: l.partyId,
           })),
         },
       },

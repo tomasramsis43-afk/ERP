@@ -115,4 +115,6 @@ export const CHART_OF_ACCOUNTS: SeedAccount[] = [
   { code: '57', nameAr: 'مصروفات إدارية', nameEn: 'Administrative Expenses', type: 'EXPENSE', parent: '5', postable: true },
   { code: '58', nameAr: 'مصروفات تسويقية', nameEn: 'Marketing Expenses', type: 'EXPENSE', parent: '5', postable: true },
   { code: '59', nameAr: 'عجز وزيادة العهد', nameEn: 'Custody Shortage/Overage', type: 'EXPENSE', parent: '5', postable: true },
+  { code: '60', nameAr: 'فروقات الجرد', nameEn: 'Inventory Adjustments', type: 'EXPENSE', parent: '5', postable: true },
+  { code: '34', nameAr: 'أرصدة افتتاحية', nameEn: 'Opening Balance Equity', type: 'EQUITY', parent: '3', postable: true },
 ];

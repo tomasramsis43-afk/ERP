@@ -7,6 +7,10 @@ import { PrismaModule } from './database/prisma.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { PartiesModule } from './modules/parties/parties.module';
+import { WarehousesModule } from './modules/warehouses/warehouses.module';
 import { HealthController } from './modules/health/health.controller';
 import { UsersModule } from './modules/users/users.module';
 
@@ -18,6 +22,10 @@ import { UsersModule } from './modules/users/users.module';
     AuthModule,
     UsersModule,
     AccountingModule,
+    CatalogModule,
+    WarehousesModule,
+    InventoryModule,
+    PartiesModule,
   ],
   controllers: [HealthController],
   providers: [

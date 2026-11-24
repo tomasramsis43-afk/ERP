@@ -100,6 +100,8 @@ export class JournalService {
           debit: l.debit.toString(),
           credit: l.credit.toString(),
           description: l.description ?? undefined,
+          partyType: (l.partyType as 'CUSTOMER' | 'SUPPLIER' | null) ?? undefined,
+          partyId: l.partyId ?? undefined,
         })),
       ),
     });

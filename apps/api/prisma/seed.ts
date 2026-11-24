@@ -7,11 +7,17 @@ import { CHART_OF_ACCOUNTS, ROLE_NAMES, ROLE_PERMISSIONS } from './seed-data';
 
 const prisma = new PrismaClient();
 
-async function applyImmutabilityTriggers(): Promise<void> {
-  const sql = readFileSync(join(__dirname, 'sql', 'immutability.sql'), 'utf8');
-  // Statements are separated by "-- @@" markers; each runs as its own command.
-  for (const statement of sql.split('-- @@').map((s) => s.trim()).filter((s) => /\S/.test(s.replace(/^--.*$/gm, '')))) {
-    await prisma.$executeRawUnsafe(statement);
+async function applySqlFiles(): Promise<void> {
+  for (const file of ['immutability.sql', 'constraints.sql']) {
+    const sql = readFileSync(join(__dirname, 'sql', file), 'utf8');
+    // Statements are separated by "-- @@" markers; each runs as its own command.
+    const statements = sql
+      .split('-- @@')
+      .map((x) => x.trim())
+      .filter((x) => /\S/.test(x.replace(/^--.*$/gm, '')));
+    for (const statement of statements) {
+      await prisma.$executeRawUnsafe(statement);
+    }
   }
 }
 
@@ -67,7 +73,6 @@ async function seedCurrencyAndSettings(): Promise<void> {
   const settings: Record<string, unknown> = {
     'vat.enabled': process.env.VAT_ENABLED === 'true',
     'vat.rate': process.env.VAT_RATE ?? '0.14',
-    'inventory.allowNegativeStock': false,
     'inventory.valuationMethod': 'WEIGHTED_AVERAGE',
     'ui.defaultLocale': process.env.DEFAULT_LOCALE ?? 'ar',
   };
@@ -114,7 +119,7 @@ async function main(): Promise<void> {
   await seedCurrencyAndSettings();
   await seedChartOfAccounts();
   await seedFiscalPeriod();
-  await applyImmutabilityTriggers();
+  await applySqlFiles();
   console.log('Seed completed');
 }
 

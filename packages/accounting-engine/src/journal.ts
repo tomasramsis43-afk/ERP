@@ -5,6 +5,9 @@ export interface JournalLineInput {
   debit: MoneyInput;
   credit: MoneyInput;
   description?: string;
+  /** Subledger link: CUSTOMER or SUPPLIER and that party's id (for statements and aging). */
+  partyType?: 'CUSTOMER' | 'SUPPLIER';
+  partyId?: string;
 }
 
 export class UnbalancedEntryError extends Error {
@@ -22,7 +25,14 @@ export class InvalidLineError extends Error {
 }
 
 export interface ValidatedJournal {
-  lines: { accountId: string; debit: Decimal; credit: Decimal; description?: string }[];
+  lines: {
+    accountId: string;
+    debit: Decimal;
+    credit: Decimal;
+    description?: string;
+    partyType?: 'CUSTOMER' | 'SUPPLIER';
+    partyId?: string;
+  }[];
   totalDebit: Decimal;
   totalCredit: Decimal;
 }
@@ -45,7 +55,17 @@ export function validateJournal(lines: JournalLineInput[]): ValidatedJournal {
     if (debit.gt(0) === credit.gt(0)) {
       throw new InvalidLineError(`Line ${i + 1}: exactly one of debit/credit must be greater than zero`);
     }
-    return { accountId: l.accountId, debit, credit, description: l.description };
+    if (Boolean(l.partyType) !== Boolean(l.partyId)) {
+      throw new InvalidLineError(`Line ${i + 1}: partyType and partyId must be set together`);
+    }
+    return {
+      accountId: l.accountId,
+      debit,
+      credit,
+      description: l.description,
+      partyType: l.partyType,
+      partyId: l.partyId,
+    };
   });
 
   const totalDebit = sum(normalized.map((l) => l.debit));
@@ -63,5 +83,7 @@ export function reverseLines(lines: JournalLineInput[]): JournalLineInput[] {
     debit: dec(l.credit),
     credit: dec(l.debit),
     description: l.description,
+    partyType: l.partyType,
+    partyId: l.partyId,
   }));
 }
