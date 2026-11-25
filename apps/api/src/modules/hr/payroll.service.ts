@@ -28,7 +28,10 @@ export class PayrollService {
   async run(period: string, actorId: string) {
     const monthStart = toDate(`${period}-01`);
     const monthEnd = new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 0));
-    if (monthStart > toDate(new Date().toISOString())) throw new BadRequestException('Cannot run payroll for a future month');
+    const today = toDate(new Date().toISOString());
+    // The current month is booked as of today, so the figures show up in today's statements.
+    const bookingDate = monthEnd > today ? today : monthEnd;
+    if (monthStart > today) throw new BadRequestException('Cannot run payroll for a future month');
 
     let run;
     try {
@@ -87,7 +90,7 @@ export class PayrollService {
         if (net.gt(0)) journalLines.push({ accountId: acc.ACCRUED_LIABILITIES, debit: 0, credit: net });
         const { entry } = await this.posting.post(
           {
-            entryDate: monthEnd,
+            entryDate: bookingDate,
             description: `Payroll ${period}`,
             source: 'PAYROLL',
             sourceId: created.id,
