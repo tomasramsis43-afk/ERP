@@ -133,9 +133,8 @@ d('offline synchronisation (requires seeded PostgreSQL)', () => {
     const stock0 = await vanQty();
     const main0 = (await http.get(`/inventory/balances?warehouseId=${mainId}&productId=${productId}`).set(bearer(admin)).expect(200)).body.items[0].quantity;
     const r = (await push([sale({ payload: { invoiceDate: today, paymentKind: 'CASH', warehouseId: mainId, representativeId: randomUUID(), lines: [{ productId, quantity: '1' }] } })]).expect(201)).body.results[0];
-    expect(r.status).toBe('REJECTED'); // unknown fields are refused
-    const ok = (await push([sale({ payload: { invoiceDate: today, paymentKind: 'CASH', lines: [{ productId, quantity: '1' }] } })]).expect(201)).body.results[0];
-    expect(ok.status).toBe('APPLIED');
+    // The forged warehouse and representative are overwritten with the server's own values.
+    expect(r.status).toBe('APPLIED');
     expect(await vanQty()).toBe(stock0 - 1);
     const main1 = (await http.get(`/inventory/balances?warehouseId=${mainId}&productId=${productId}`).set(bearer(admin)).expect(200)).body.items[0].quantity;
     expect(n(main1)).toBe(n(main0));
