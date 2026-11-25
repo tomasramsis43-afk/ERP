@@ -223,6 +223,7 @@ model JournalLine {
 
   entry   JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
   account Account      @relation(fields: [accountId], references: [id])
+  reconciled ReconciledLine?
 
   @@index([entryId])
   @@index([accountId])
@@ -602,4 +603,131 @@ model PurchaseInvoiceLine {
 
   @@index([invoiceId])
   @@index([productId])
+}
+
+// ---------------------------------------------------------------
+// Treasury, banks, cheques
+// ---------------------------------------------------------------
+
+enum FinancialAccountKind {
+  CASHBOX
+  BANK
+}
+
+/// A cash box or bank account. Each one owns a dedicated postable GL account so its balance
+/// always comes from posted journal lines.
+model FinancialAccount {
+  id            String               @id @default(uuid())
+  code          String               @unique
+  kind          FinancialAccountKind
+  nameAr        String
+  nameEn        String
+  bankName      String?
+  accountNumber String?
+  glAccountId   String               @unique
+  isActive      Boolean              @default(true)
+  createdAt     DateTime             @default(now())
+
+  vouchers        Voucher[]       @relation("VoucherFrom")
+  incomingTransfers Voucher[]     @relation("VoucherTo")
+  cheques         Cheque[]
+  reconciliations BankReconciliation[]
+}
+
+enum VoucherType {
+  RECEIPT
+  PAYMENT
+  TRANSFER
+}
+
+model Voucher {
+  id                  String      @id @default(uuid())
+  number              Int         @unique @default(autoincrement())
+  type                VoucherType
+  voucherDate         DateTime    @db.Date
+  amount              Decimal     @db.Decimal(18, 2)
+  financialAccountId  String
+  toFinancialAccountId String?
+  partyType           String? // CUSTOMER | SUPPLIER
+  partyId             String?
+  counterAccountId    String? // GL account for non-party vouchers (expense, other income)
+  description         String
+  status              DocStatus   @default(POSTED)
+  idempotencyKey      String      @unique
+  journalEntryId      String?
+  representativeId    String?
+  cancelReason        String?
+  cancelledAt         DateTime?
+  createdById         String?
+  createdAt           DateTime    @default(now())
+
+  financialAccount   FinancialAccount  @relation("VoucherFrom", fields: [financialAccountId], references: [id])
+  toFinancialAccount FinancialAccount? @relation("VoucherTo", fields: [toFinancialAccountId], references: [id])
+
+  @@index([financialAccountId, voucherDate])
+  @@index([partyType, partyId])
+  @@index([representativeId, voucherDate])
+}
+
+enum ChequeDirection {
+  INCOMING
+  OUTGOING
+}
+
+enum ChequeStatus {
+  PENDING
+  SETTLED
+  BOUNCED
+}
+
+model Cheque {
+  id                 String          @id @default(uuid())
+  direction          ChequeDirection
+  chequeNumber       String
+  bankName           String
+  dueDate            DateTime        @db.Date
+  receivedDate       DateTime        @db.Date
+  amount             Decimal         @db.Decimal(18, 2)
+  partyType          String // CUSTOMER (incoming) | SUPPLIER (outgoing)
+  partyId            String
+  /// Outgoing: the bank account the cheque is drawn on. Incoming: set when deposited.
+  financialAccountId String?
+  status             ChequeStatus    @default(PENDING)
+  idempotencyKey     String          @unique
+  openJournalEntryId String?
+  settleJournalEntryId String?
+  settledAt          DateTime?
+  note               String?
+  createdById        String?
+  createdAt          DateTime        @default(now())
+
+  financialAccount FinancialAccount? @relation(fields: [financialAccountId], references: [id])
+
+  @@index([direction, status, dueDate])
+  @@index([partyType, partyId])
+}
+
+model BankReconciliation {
+  id                 String   @id @default(uuid())
+  financialAccountId String
+  statementDate      DateTime @db.Date
+  statementBalance   Decimal  @db.Decimal(18, 2)
+  createdById        String?
+  createdAt          DateTime @default(now())
+
+  financialAccount FinancialAccount @relation(fields: [financialAccountId], references: [id])
+  lines            ReconciledLine[]
+
+  @@index([financialAccountId, statementDate])
+}
+
+/// A journal line can be reconciled once (journal lines themselves stay immutable).
+model ReconciledLine {
+  journalLineId    String @id
+  reconciliationId String
+
+  journalLine    JournalLine        @relation(fields: [journalLineId], references: [id])
+  reconciliation BankReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+
+  @@index([reconciliationId])
 }

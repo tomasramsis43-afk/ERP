@@ -97,6 +97,7 @@ export const CHART_OF_ACCOUNTS: SeedAccount[] = [
   { code: '22', nameAr: 'القروض', nameEn: 'Loans', type: 'LIABILITY', parent: '2', postable: true },
   { code: '23', nameAr: 'مستحقات للغير', nameEn: 'Accrued Liabilities', type: 'LIABILITY', parent: '2', postable: true },
   { code: '24', nameAr: 'ضريبة القيمة المضافة', nameEn: 'VAT Payable', type: 'LIABILITY', parent: '2', postable: true },
+  { code: '25', nameAr: 'شيكات تحت الدفع', nameEn: 'Cheques Payable', type: 'LIABILITY', parent: '2', postable: true },
   { code: '3', nameAr: 'حقوق الملكية', nameEn: 'Equity', type: 'EQUITY', postable: false },
   { code: '31', nameAr: 'رأس المال', nameEn: 'Capital', type: 'EQUITY', parent: '3', postable: true },
   { code: '32', nameAr: 'الأرباح المرحلة', nameEn: 'Retained Earnings', type: 'EQUITY', parent: '3', postable: true },

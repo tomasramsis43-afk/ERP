@@ -13,6 +13,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { PartiesModule } from './modules/parties/parties.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
 import { SalesModule } from './modules/sales/sales.module';
+import { TreasuryModule } from './modules/treasury/treasury.module';
 import { WarehousesModule } from './modules/warehouses/warehouses.module';
 import { HealthController } from './modules/health/health.controller';
 import { UsersModule } from './modules/users/users.module';
@@ -32,6 +33,7 @@ import { UsersModule } from './modules/users/users.module';
     PartiesModule,
     SalesModule,
     PurchasesModule,
+    TreasuryModule,
   ],
   controllers: [HealthController],
   providers: [

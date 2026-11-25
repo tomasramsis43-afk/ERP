@@ -102,6 +102,15 @@ async function seedChartOfAccounts(): Promise<void> {
   }
 }
 
+async function seedMainCashbox(): Promise<void> {
+  const gl = await prisma.account.findUniqueOrThrow({ where: { code: '1101' } });
+  await prisma.financialAccount.upsert({
+    where: { code: 'MAIN' },
+    update: {},
+    create: { code: 'MAIN', kind: 'CASHBOX', nameAr: 'الخزينة الرئيسية', nameEn: 'Main Cash Box', glAccountId: gl.id },
+  });
+}
+
 async function seedFiscalPeriod(): Promise<void> {
   const year = new Date().getUTCFullYear();
   const startDate = new Date(Date.UTC(year, 0, 1));
@@ -118,6 +127,7 @@ async function main(): Promise<void> {
   await seedAdmin();
   await seedCurrencyAndSettings();
   await seedChartOfAccounts();
+  await seedMainCashbox();
   await seedFiscalPeriod();
   await applySqlFiles();
   console.log('Seed completed');
