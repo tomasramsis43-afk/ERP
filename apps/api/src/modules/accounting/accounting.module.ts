@@ -12,6 +12,6 @@ import { LedgerReportsService } from './reports/ledger-reports.service';
   controllers: [AccountsController, JournalController, LedgerReportsController],
   providers: [AccountsService, JournalService, JournalPostingService, LedgerReportsService, SystemAccountsService],
   // Other domain modules (sales, purchases, treasury...) import this module and post via JournalPostingService.
-  exports: [JournalPostingService, SystemAccountsService],
+  exports: [JournalPostingService, SystemAccountsService, LedgerReportsService],
 })
 export class AccountingModule {}

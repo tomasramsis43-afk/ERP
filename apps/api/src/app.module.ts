@@ -12,6 +12,7 @@ import { CatalogModule } from './modules/catalog/catalog.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { PartiesModule } from './modules/parties/parties.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { RepresentativesModule } from './modules/representatives/representatives.module';
 import { RoutesModule } from './modules/routes/routes.module';
 import { VehiclesModule } from './modules/vehicles/vehicles.module';
@@ -40,6 +41,7 @@ import { UsersModule } from './modules/users/users.module';
     RoutesModule,
     VehiclesModule,
     RepresentativesModule,
+    ReportsModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Decimal, dec } from '@erp/accounting-engine';
 import { PrismaService } from '../../database/prisma.service';
+import { ageLines } from './aging';
 
 export type PartyType = 'CUSTOMER' | 'SUPPLIER';
 
@@ -88,38 +89,6 @@ export class PartyLedgerService {
       include: { entry: { select: { entryDate: true } } },
       orderBy: [{ entry: { entryDate: 'asc' } }, { id: 'asc' }],
     });
-    const charges: { date: Date; remaining: Decimal }[] = [];
-    let settlements = new Decimal(0);
-    for (const l of lines) {
-      const d = dec(l.debit.toString());
-      const c = dec(l.credit.toString());
-      const [charge, settle] = type === 'CUSTOMER' ? [d, c] : [c, d];
-      if (charge.gt(0)) charges.push({ date: l.entry.entryDate, remaining: charge });
-      settlements = settlements.plus(settle);
-    }
-    for (const ch of charges) {
-      if (settlements.lte(0)) break;
-      const used = Decimal.min(ch.remaining, settlements);
-      ch.remaining = ch.remaining.minus(used);
-      settlements = settlements.minus(used);
-    }
-    const buckets = { current: new Decimal(0), d30: new Decimal(0), d60: new Decimal(0), d90: new Decimal(0), over90: new Decimal(0) };
-    for (const ch of charges) {
-      if (ch.remaining.lte(0)) continue;
-      const days = Math.floor((asOf.getTime() - ch.date.getTime()) / 86_400_000);
-      const key = days <= 0 ? 'current' : days <= 30 ? 'd30' : days <= 60 ? 'd60' : days <= 90 ? 'd90' : 'over90';
-      buckets[key] = buckets[key].plus(ch.remaining);
-    }
-    const total = Object.values(buckets).reduce((a, b) => a.plus(b), new Decimal(0));
-    return {
-      current: buckets.current.toFixed(2),
-      days1to30: buckets.d30.toFixed(2),
-      days31to60: buckets.d60.toFixed(2),
-      days61to90: buckets.d90.toFixed(2),
-      over90: buckets.over90.toFixed(2),
-      total: total.toFixed(2),
-      // Unapplied credit (overpayment / advance) is reported separately, never netted silently.
-      unappliedCredit: settlements.gt(0) ? settlements.toFixed(2) : '0.00',
-    };
+    return ageLines(type, lines.map((l) => ({ date: l.entry.entryDate, debit: l.debit, credit: l.credit })), asOf);
   }
 }
