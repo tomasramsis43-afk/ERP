@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Decimal, dec } from '@erp/accounting-engine';
 import { PrismaService } from '../../database/prisma.service';
 import { toDate } from '../accounting/dto/journal.dto';
@@ -12,6 +12,9 @@ export interface StatementRow {
 
 const ZERO = () => new Decimal(0);
 const iso = (d: Date) => d.toISOString().slice(0, 10);
+const assertRange = (from: Date, to: Date) => {
+  if (from > to) throw new BadRequestException('from must not be after to');
+};
 
 /**
  * Financial statements are derived from POSTED journal lines only (never from invoices).
@@ -53,6 +56,7 @@ export class StatementsService {
   async incomeStatement(fromStr: string, toStr: string) {
     const from = toDate(fromStr);
     const to = toDate(toStr);
+    assertRange(from, to);
     const items = await this.nets(from, to, false);
     const revenue = this.rows(items.filter((i) => i.account.type === 'REVENUE'), -1); // credit-natural; returns net off
     const expenses = items.filter((i) => i.account.type === 'EXPENSE');
@@ -111,6 +115,7 @@ export class StatementsService {
   async cashFlow(fromStr: string, toStr: string) {
     const from = toDate(fromStr);
     const to = toDate(toStr);
+    assertRange(from, to);
     const cashAccounts = await this.prisma.financialAccount.findMany({ select: { glAccountId: true } });
     const ids = cashAccounts.map((c) => c.glAccountId);
     const [openingLines, accountsOpening, movements] = await Promise.all([
