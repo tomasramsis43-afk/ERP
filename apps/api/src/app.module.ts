@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { CommonModule } from './common/common.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { PrismaModule } from './database/prisma.module';
@@ -10,6 +11,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { PartiesModule } from './modules/parties/parties.module';
+import { PurchasesModule } from './modules/purchases/purchases.module';
+import { SalesModule } from './modules/sales/sales.module';
 import { WarehousesModule } from './modules/warehouses/warehouses.module';
 import { HealthController } from './modules/health/health.controller';
 import { UsersModule } from './modules/users/users.module';
@@ -18,6 +21,7 @@ import { UsersModule } from './modules/users/users.module';
   imports: [
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     PrismaModule,
+    CommonModule,
     AuditModule,
     AuthModule,
     UsersModule,
@@ -26,6 +30,8 @@ import { UsersModule } from './modules/users/users.module';
     WarehousesModule,
     InventoryModule,
     PartiesModule,
+    SalesModule,
+    PurchasesModule,
   ],
   controllers: [HealthController],
   providers: [

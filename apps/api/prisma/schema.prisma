@@ -282,6 +282,8 @@ model Product {
   balances      StockBalance[]
   movements     StockMovement[]
   transferLines StockTransferLine[]
+  salesLines    SalesInvoiceLine[]
+  purchaseLines PurchaseInvoiceLine[]
 
   @@index([categoryId])
   @@index([nameAr])
@@ -335,6 +337,7 @@ model Customer {
   updatedAt        DateTime @updatedAt
 
   prices CustomerPrice[]
+  salesInvoices SalesInvoice[]
 
   @@index([nameAr])
   @@index([regionId])
@@ -352,6 +355,8 @@ model Supplier {
   isActive         Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  purchaseInvoices PurchaseInvoice[]
 
   @@index([nameAr])
 }
@@ -379,6 +384,8 @@ model Warehouse {
   movements     StockMovement[]
   transfersFrom StockTransfer[] @relation("TransferFrom")
   transfersTo   StockTransfer[] @relation("TransferTo")
+  salesInvoices SalesInvoice[]
+  purchaseInvoices PurchaseInvoice[]
 }
 
 model StockBalance {
@@ -463,4 +470,136 @@ model StockTransferLine {
   product  Product       @relation(fields: [productId], references: [id])
 
   @@index([transferId])
+}
+
+// ---------------------------------------------------------------
+// Sales & purchases
+// ---------------------------------------------------------------
+
+enum PaymentKind {
+  CASH
+  CREDIT
+}
+
+enum DocStatus {
+  POSTED
+  CANCELLED
+}
+
+enum SalesDocKind {
+  SALE
+  RETURN
+}
+
+enum PurchaseDocKind {
+  PURCHASE
+  RETURN
+}
+
+enum ReturnCondition {
+  GOOD
+  DAMAGED
+}
+
+model SalesInvoice {
+  id                String          @id @default(uuid())
+  number            Int             @unique @default(autoincrement())
+  kind              SalesDocKind    @default(SALE)
+  customerId        String?
+  warehouseId       String
+  invoiceDate       DateTime        @db.Date
+  paymentKind       PaymentKind
+  status            DocStatus       @default(POSTED)
+  subtotal          Decimal         @db.Decimal(18, 2) // before discount
+  discountTotal     Decimal         @default(0) @db.Decimal(18, 2)
+  vatTotal          Decimal         @default(0) @db.Decimal(18, 2)
+  total             Decimal         @db.Decimal(18, 2)
+  costTotal         Decimal         @default(0) @db.Decimal(18, 2)
+  originalInvoiceId String?
+  condition         ReturnCondition @default(GOOD)
+  /// Client-generated operation id: a retried or offline-replayed request creates the document once.
+  idempotencyKey    String          @unique
+  journalEntryId    String?
+  representativeId  String?
+  note              String?
+  cancelReason      String?
+  cancelledAt       DateTime?
+  createdById       String?
+  createdAt         DateTime        @default(now())
+
+  customer  Customer?  @relation(fields: [customerId], references: [id])
+  warehouse Warehouse  @relation(fields: [warehouseId], references: [id])
+  lines     SalesInvoiceLine[]
+
+  @@index([customerId, invoiceDate])
+  @@index([invoiceDate])
+  @@index([representativeId, invoiceDate])
+  @@index([originalInvoiceId])
+}
+
+model SalesInvoiceLine {
+  id         String  @id @default(uuid())
+  invoiceId  String
+  productId  String
+  unitId     String?
+  enteredQty Decimal @db.Decimal(18, 4)
+  baseQty    Decimal @db.Decimal(18, 4)
+  unitPrice  Decimal @db.Decimal(18, 4) // per entered unit
+  discount   Decimal @default(0) @db.Decimal(18, 2)
+  lineNet    Decimal @db.Decimal(18, 2)
+  unitCost   Decimal @default(0) @db.Decimal(18, 4) // per base unit, captured at posting
+
+  invoice SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [productId], references: [id])
+
+  @@index([invoiceId])
+  @@index([productId])
+}
+
+model PurchaseInvoice {
+  id             String          @id @default(uuid())
+  number         Int             @unique @default(autoincrement())
+  kind           PurchaseDocKind @default(PURCHASE)
+  supplierId     String
+  warehouseId    String
+  invoiceDate    DateTime        @db.Date
+  paymentKind    PaymentKind
+  status         DocStatus       @default(POSTED)
+  subtotal       Decimal         @db.Decimal(18, 2)
+  shippingCost   Decimal         @default(0) @db.Decimal(18, 2)
+  vatTotal       Decimal         @default(0) @db.Decimal(18, 2)
+  total          Decimal         @db.Decimal(18, 2) // owed to supplier (excludes shipping paid to carrier)
+  supplierRef    String?
+  idempotencyKey String          @unique
+  journalEntryId String?
+  note           String?
+  cancelReason   String?
+  cancelledAt    DateTime?
+  createdById    String?
+  createdAt      DateTime        @default(now())
+
+  supplier  Supplier  @relation(fields: [supplierId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  lines     PurchaseInvoiceLine[]
+
+  @@index([supplierId, invoiceDate])
+  @@index([invoiceDate])
+}
+
+model PurchaseInvoiceLine {
+  id         String  @id @default(uuid())
+  invoiceId  String
+  productId  String
+  unitId     String?
+  enteredQty Decimal @db.Decimal(18, 4)
+  baseQty    Decimal @db.Decimal(18, 4)
+  unitPrice  Decimal @db.Decimal(18, 4) // per entered unit
+  lineNet    Decimal @db.Decimal(18, 2)
+  unitCost   Decimal @default(0) @db.Decimal(18, 4) // landed cost per base unit
+
+  invoice PurchaseInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id])
+
+  @@index([invoiceId])
+  @@index([productId])
 }

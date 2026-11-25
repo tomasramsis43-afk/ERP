@@ -97,6 +97,38 @@ export class StockService {
     return { movement, created: true };
   }
 
+  /**
+   * Cancels a document's stock effect by writing equal and opposite movements (the ledger is never edited).
+   * IN movements are reversed with OUT (which fails if the stock was already sold), and vice versa.
+   */
+  async reverseMovements(
+    tx: Tx,
+    source: string,
+    sourceId: string,
+    date: Date,
+    actorId: string,
+    types: { reverseOfIn: MovementType; reverseOfOut: MovementType },
+  ): Promise<void> {
+    const original = await tx.stockMovement.findMany({ where: { source, sourceId }, orderBy: { number: 'asc' } });
+    await this.lockBalances(tx, original.map((m) => ({ warehouseId: m.warehouseId, productId: m.productId })));
+    for (const m of original) {
+      const isIn = m.quantity.gt(0);
+      await this.apply(tx, {
+        type: isIn ? types.reverseOfIn : types.reverseOfOut,
+        direction: isIn ? 'OUT' : 'IN',
+        warehouseId: m.warehouseId,
+        productId: m.productId,
+        quantity: dec(m.quantity.toString()).abs(),
+        unitCost: dec(m.unitCost.toString()),
+        movementDate: date,
+        source: `${source}_CANCEL`,
+        sourceId,
+        idempotencyKey: `cancel:${m.id}`,
+        createdById: actorId,
+      });
+    }
+  }
+
   private async updateAverageCost(tx: Tx, productId: string, oldAvg: Decimal, inQty: Decimal, inCost: Decimal) {
     const [{ total }] = await tx.$queryRaw<{ total: Prisma.Decimal }[]>`
       SELECT COALESCE(SUM("quantity"), 0) AS total FROM "StockBalance" WHERE "productId" = ${productId}`;
