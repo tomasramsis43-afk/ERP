@@ -55,17 +55,6 @@ d('security (requires seeded PostgreSQL)', () => {
     await http.post('/auth/refresh').send({ refreshToken: second.refreshToken }).expect(401);
   });
 
-  it('brute-force login attempts are throttled and never reveal whether the email exists', async () => {
-    const unknown = await http.post('/auth/login').send({ email: `nobody-${uid()}@test.local`, password: 'whatever-123' });
-    const wrong = await http.post('/auth/login').send({ email: process.env.SEED_ADMIN_EMAIL, password: 'wrong-password-123' });
-    expect(unknown.status).toBe(401);
-    expect(wrong.status).toBe(401);
-    expect(unknown.body.message).toBe(wrong.body.message);
-    const codes: number[] = [];
-    for (let i = 0; i < 14; i++) codes.push((await http.post('/auth/login').send({ email: process.env.SEED_ADMIN_EMAIL, password: `wrong-${i}-password` })).status);
-    expect(codes).toContain(429);
-  });
-
   it('never returns password hashes or token hashes', async () => {
     const users = await http.get('/users').set(bearer(admin)).expect(200);
     const text = JSON.stringify(users.body);
@@ -99,5 +88,17 @@ d('security (requires seeded PostgreSQL)', () => {
     await http.post('/users').set(bearer(t)).send({ email: `x-${uid()}@test.local`, fullName: 'X', password: 'long-password-123', roleCodes: ['SYSTEM_ADMIN'] }).expect(403);
     await http.get('/hr/employees').set(bearer(t)).expect(403);
     await http.get('/accounting/reports/trial-balance').set(bearer(t)).expect(403);
+  });
+
+  // Last on purpose: it exhausts this app instance's login throttle.
+  it('brute-force login attempts are throttled and never reveal whether the email exists', async () => {
+    const unknown = await http.post('/auth/login').send({ email: `nobody-${uid()}@test.local`, password: 'whatever-123' });
+    const wrong = await http.post('/auth/login').send({ email: process.env.SEED_ADMIN_EMAIL, password: 'wrong-password-123' });
+    expect(unknown.status).toBe(401);
+    expect(wrong.status).toBe(401);
+    expect(unknown.body.message).toBe(wrong.body.message);
+    const codes: number[] = [];
+    for (let i = 0; i < 14; i++) codes.push((await http.post('/auth/login').send({ email: process.env.SEED_ADMIN_EMAIL, password: `wrong-${i}-password` })).status);
+    expect(codes).toContain(429);
   });
 });
