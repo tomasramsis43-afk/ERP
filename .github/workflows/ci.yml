@@ -45,3 +45,24 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      - name: Backup and restore round trip
+        run: |
+          infrastructure/scripts/backup.sh /tmp/backups
+          ADMIN_DATABASE_URL=postgresql://erp:ci_only_password@localhost:5432/postgres \
+            infrastructure/scripts/verify-backup.sh "$(ls /tmp/backups/erp-*.dump | head -1)"
+      - name: Generate baseline migration SQL
+        run: npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > /tmp/baseline.sql
+        working-directory: apps/api
+      - uses: actions/upload-artifact@v4
+        with:
+          name: baseline-migration
+          path: /tmp/baseline.sql
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -f infrastructure/docker/api.Dockerfile -t erp-api:ci .
+      - name: Build web image
+        run: docker build -f infrastructure/docker/web.Dockerfile -t erp-web:ci .
