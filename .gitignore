@@ -12,3 +12,5 @@ coverage/
 *.tsbuildinfo
 backups/
 .expo/
+.next/
+next-env.d.ts
