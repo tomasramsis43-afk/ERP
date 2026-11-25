@@ -1,4 +1,4 @@
--- Applied idempotently by prisma/seed.ts. Statements are separated by "-- @@" markers.
+-- Applied idempotently by prisma/seed.ts (one statement per marker line below).
 
 -- Stock can never go negative at database level (the engine also checks, this is the safety net).
 ALTER TABLE "StockBalance" DROP CONSTRAINT IF EXISTS chk_stock_non_negative;
