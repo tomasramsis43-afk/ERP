@@ -67,7 +67,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, PermissionCode[]> = {
     ...crud('inventory', ['view']),
     'sales:credit_sale',
   ],
-  HR: [...crud('hr'), ...crud('representatives', ['view']), ...crud('reports', ['view'])],
+  HR: [...crud('hr', ['view', 'create', 'update', 'delete', 'approve']), ...crud('representatives', ['view']), ...crud('reports', ['view'])],
 };
 
 export interface SeedAccount {
@@ -93,6 +93,7 @@ export const CHART_OF_ACCOUNTS: SeedAccount[] = [
   { code: '1402', nameAr: 'مخزون السيارات', nameEn: 'Vehicle Stock', type: 'ASSET', parent: '14', postable: true },
   { code: '15', nameAr: 'الأصول الثابتة', nameEn: 'Fixed Assets', type: 'ASSET', parent: '1', postable: false },
   { code: '16', nameAr: 'ضريبة القيمة المضافة المدخلة', nameEn: 'VAT Receivable (Input)', type: 'ASSET', parent: '1', postable: true },
+  { code: '17', nameAr: 'سلف الموظفين', nameEn: 'Employee Advances', type: 'ASSET', parent: '1', postable: true },
   { code: '1501', nameAr: 'السيارات', nameEn: 'Vehicles', type: 'ASSET', parent: '15', postable: true },
   { code: '1599', nameAr: 'مجمع الإهلاك', nameEn: 'Accumulated Depreciation', type: 'ASSET', parent: '15', postable: true },
   { code: '2', nameAr: 'الخصوم', nameEn: 'Liabilities', type: 'LIABILITY', postable: false },
