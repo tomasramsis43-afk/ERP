@@ -58,7 +58,9 @@ jobs:
           ADMIN_DATABASE_URL=postgresql://erp:ci_only_password@localhost:5432/postgres \
             infrastructure/scripts/verify-backup.sh "$(ls /tmp/backups/erp-*.dump | head -1)"
       - name: Generate baseline migration SQL
-        run: npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > /tmp/baseline.sql
+        run: |
+          npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > /tmp/baseline.sql
+          echo BASELINE-BEGIN; cat /tmp/baseline.sql; echo BASELINE-END
         working-directory: apps/api
       - uses: actions/upload-artifact@v4
         with:
