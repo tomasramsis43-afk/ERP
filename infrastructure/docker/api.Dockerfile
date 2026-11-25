@@ -10,6 +10,7 @@ COPY packages/accounting-engine/package.json packages/accounting-engine/
 COPY packages/shared-types/package.json packages/shared-types/
 # Install only what the API needs (its workspace dependencies are linked automatically).
 RUN npm ci --workspace @erp/api --include-workspace-root --ignore-scripts
+COPY tsconfig.base.json ./
 COPY packages packages
 COPY apps/api apps/api
 RUN npm run build --workspace @erp/shared-types --workspace @erp/accounting-engine \

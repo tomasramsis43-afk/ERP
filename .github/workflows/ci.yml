@@ -47,6 +47,10 @@ jobs:
       - run: npm test
       - name: Backup and restore round trip
         run: |
+          # The client tools must not be newer than the server (PostgreSQL 16).
+          sudo apt-get install -y --no-install-recommends postgresql-client-16 > /dev/null
+          export PATH=/usr/lib/postgresql/16/bin:$PATH
+          pg_dump --version
           infrastructure/scripts/backup.sh /tmp/backups
           ADMIN_DATABASE_URL=postgresql://erp:ci_only_password@localhost:5432/postgres \
             infrastructure/scripts/verify-backup.sh "$(ls /tmp/backups/erp-*.dump | head -1)"
