@@ -112,7 +112,16 @@ export class ReportTablesService {
             n(L(lang, 'الإجمالي', 'Total'), 'total'),
           ],
           rows: [
-            ...a.rows.map((r) => ({ ...r, name: lang === 'ar' ? r.nameAr : r.nameEn })),
+            ...a.rows.map((r) => ({
+              code: r.code,
+              name: (lang === 'ar' ? r.nameAr : r.nameEn) || r.nameAr,
+              current: r.current,
+              days1to30: r.days1to30,
+              days31to60: r.days31to60,
+              days61to90: r.days61to90,
+              over90: r.over90,
+              total: r.total,
+            })),
             { code: '', name: L(lang, 'الإجمالي', 'Total'), ...a.totals },
           ],
           boldRows: [a.rows.length],
