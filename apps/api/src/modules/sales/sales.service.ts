@@ -75,6 +75,8 @@ export class SalesService {
       const warehouse = await tx.warehouse.findUnique({ where: { id: dto.warehouseId } });
       if (!warehouse || !warehouse.isActive) throw new BadRequestException('Warehouse not found or inactive');
 
+      const custodyGl = await this.repCustodyAccount(tx, dto, warehouse, user);
+
       const customer = dto.customerId ? await tx.customer.findUnique({ where: { id: dto.customerId } }) : null;
       if (dto.customerId && (!customer || !customer.isActive)) throw new BadRequestException('Customer not found or inactive');
       if (dto.paymentKind === 'CREDIT' && !customer) throw new BadRequestException('A credit document requires a customer');
@@ -140,7 +142,7 @@ export class SalesService {
       await tx.salesInvoiceLine.createMany({ data: lineRows });
 
       const cost = roundMoney(costTotal);
-      const entry = await this.postJournal(tx, kind, invoice.id, invoice.number, date, dto, warehouse.type, {
+      const entry = await this.postJournal(tx, kind, invoice.id, invoice.number, date, dto, warehouse.type, custodyGl, {
         net: roundMoney(net),
         vat: vatTotal,
         total: roundMoney(total),
@@ -377,6 +379,31 @@ export class SalesService {
     return unitCost;
   }
 
+  /** Validates the representative of a document and returns the GL account of their cash custody. */
+  private async repCustodyAccount(
+    tx: Tx,
+    dto: CreateSalesReturnDto,
+    warehouse: { id: string; type: string },
+    user: AuthUser,
+  ): Promise<string | undefined> {
+    if (!dto.representativeId) {
+      if (warehouse.type === 'VEHICLE') throw new BadRequestException('Sales from a vehicle warehouse require a representative');
+      return undefined;
+    }
+    const rep = await tx.representative.findUnique({
+      where: { id: dto.representativeId },
+      include: { vehicle: true, financialAccount: true },
+    });
+    if (!rep || !rep.isActive) throw new BadRequestException('Representative not found or inactive');
+    if (rep.userId && rep.userId !== user.id && !user.permissions.includes('representatives:approve')) {
+      throw new ForbiddenException('A representative can only sell on their own behalf');
+    }
+    if (!rep.vehicle || rep.vehicle.warehouseId !== warehouse.id) {
+      throw new BadRequestException("A representative sells only from their own vehicle's warehouse");
+    }
+    return rep.financialAccount.glAccountId;
+  }
+
   private async postJournal(
     tx: Tx,
     kind: SalesDocKind,
@@ -385,6 +412,7 @@ export class SalesService {
     date: Date,
     dto: CreateSalesReturnDto,
     warehouseType: string,
+    custodyGl: string | undefined,
     amounts: { net: Decimal; vat: Decimal; total: Decimal; cost: Decimal },
     customerId: string | undefined,
     actorId: string,
@@ -395,7 +423,8 @@ export class SalesService {
     );
     const stockAccount = warehouseType === 'VEHICLE' ? acc.VEHICLE_STOCK : acc.INVENTORY;
     const party = dto.paymentKind === 'CREDIT' && customerId ? { partyType: 'CUSTOMER' as const, partyId: customerId } : {};
-    const settle = dto.paymentKind === 'CREDIT' ? acc.RECEIVABLES : acc.CASH;
+    // Cash taken by a representative goes into their custody, not the main cash box.
+    const settle = dto.paymentKind === 'CREDIT' ? acc.RECEIVABLES : custodyGl ?? acc.CASH;
     const lines: JournalLineInput[] = [];
 
     if (kind === 'SALE') {

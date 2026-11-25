@@ -48,6 +48,13 @@ export class VouchersService {
       const from = locked.get(dto.financialAccountId)!;
       const to = dto.toFinancialAccountId ? locked.get(dto.toFinancialAccountId)! : undefined;
 
+      if (dto.representativeId) {
+        const rep = await tx.representative.findUnique({ where: { id: dto.representativeId } });
+        if (!rep || !rep.isActive) throw new BadRequestException('Representative not found or inactive');
+        if (dto.type === 'RECEIPT' && from.id !== rep.financialAccountId) {
+          throw new BadRequestException("A representative's collections must go into their custody account");
+        }
+      }
       if (dto.type !== 'RECEIPT') await this.fa.assertCanPay(tx, from, amount);
 
       const counter = await this.resolveCounter(tx, dto);
@@ -66,6 +73,8 @@ export class VouchersService {
           description: dto.description,
           idempotencyKey: dto.idempotencyKey,
           representativeId: dto.representativeId,
+          vehicleId: dto.vehicleId,
+          expenseCategory: dto.expenseCategory,
           createdById: actorId,
         },
       });
@@ -181,6 +190,9 @@ export class VouchersService {
       return;
     }
     if (dto.toFinancialAccountId) throw new BadRequestException('toFinancialAccountId is only for transfers');
+    if ((dto.vehicleId || dto.expenseCategory) && dto.type !== 'PAYMENT') {
+      throw new BadRequestException('Vehicle expenses are payments');
+    }
     if (hasParty === Boolean(dto.counterAccountId)) {
       throw new BadRequestException('Provide either a party (customer/supplier) or a counterAccountId, not both or neither');
     }

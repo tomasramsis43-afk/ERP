@@ -90,6 +90,13 @@ export class CreateVoucherDto {
 
   @IsOptional() @IsUUID()
   representativeId?: string;
+
+  /** Marks the payment as a vehicle operating expense (fuel, maintenance...). */
+  @IsOptional() @IsUUID()
+  vehicleId?: string;
+
+  @IsOptional() @IsIn(['FUEL', 'MAINTENANCE', 'LICENSE', 'INSURANCE', 'OTHER'])
+  expenseCategory?: 'FUEL' | 'MAINTENANCE' | 'LICENSE' | 'INSURANCE' | 'OTHER';
 }
 
 export class IncomingChequeDto {

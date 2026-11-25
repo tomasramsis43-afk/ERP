@@ -30,6 +30,9 @@ export class CreateCustomerDto extends PartyBase {
   regionId?: string;
 
   @IsOptional() @IsUUID()
+  routeId?: string;
+
+  @IsOptional() @IsUUID()
   representativeId?: string;
 }
 
@@ -45,6 +48,9 @@ export class UpdateCustomerDto extends PartyBase {
 
   @IsOptional() @IsUUID()
   regionId?: string;
+
+  @IsOptional() @IsUUID()
+  routeId?: string;
 
   @IsOptional() @IsUUID()
   representativeId?: string;

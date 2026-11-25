@@ -92,62 +92,71 @@ export class FinancialAccountsService {
     if (await this.prisma.financialAccount.findUnique({ where: { code: dto.code } })) {
       throw new ConflictException('Code already exists');
     }
-    if (dto.kind === 'BANK' && !dto.bankName) throw new BadRequestException('bankName is required for bank accounts');
-    const opening = roundMoney(dto.openingBalance ?? '0');
-
-    const fa = await this.prisma.$transaction(async (tx) => {
-      const prefix = dto.kind === 'BANK' ? '1102' : '1101';
-      const glCode = `${prefix}.${dto.code}`;
-      const parent = await tx.account.findUniqueOrThrow({ where: { code: '11' } });
-      const gl = await tx.account.create({
-        data: {
-          code: glCode,
-          nameAr: dto.nameAr,
-          nameEn: dto.nameEn,
-          type: 'ASSET',
-          normalBalance: 'DEBIT',
-          parentId: parent.id,
-          isPostable: true,
-        },
-      });
-      const created = await tx.financialAccount.create({
-        data: {
-          code: dto.code,
-          kind: dto.kind,
-          nameAr: dto.nameAr,
-          nameEn: dto.nameEn,
-          bankName: dto.bankName,
-          accountNumber: dto.accountNumber,
-          glAccountId: gl.id,
-        },
-      });
-      if (opening.gt(0)) {
-        const acc = await this.accounts.resolve(['OPENING_EQUITY'], tx);
-        await this.posting.post(
-          {
-            entryDate: toDate(dto.openingDate ?? new Date().toISOString()),
-            description: `Opening balance: ${dto.code}`,
-            source: 'OPENING_BALANCE',
-            sourceId: created.id,
-            idempotencyKey: `opening:fa:${created.id}`,
-            createdById: actorId,
-            lines: [
-              { accountId: gl.id, debit: opening, credit: 0 },
-              { accountId: acc.OPENING_EQUITY, debit: 0, credit: opening },
-            ],
-          },
-          tx,
-        );
-      }
-      return created;
-    });
+    const fa = await this.prisma.$transaction((tx) => this.createInTx(tx, dto, actorId));
     await this.audit.record({
       userId: actorId,
       action: 'CREATE',
       entity: 'FinancialAccount',
       entityId: fa.id,
-      newData: { code: fa.code, kind: fa.kind, opening: opening.toFixed(2) } as Prisma.InputJsonValue,
+      newData: { code: fa.code, kind: fa.kind, opening: dto.openingBalance ?? '0' } as Prisma.InputJsonValue,
     });
     return fa;
+  }
+
+  /**
+   * Creates the cash box / bank account and its dedicated GL account inside the caller's transaction.
+   * `glParentCode`/`glPrefix` let other modules (e.g. representative custody) place it elsewhere in the chart.
+   */
+  async createInTx(
+    tx: Tx,
+    dto: CreateFinancialAccountDto,
+    actorId: string,
+    opts: { glParentCode?: string; glPrefix?: string } = {},
+  ) {
+    if (dto.kind === 'BANK' && !dto.bankName) throw new BadRequestException('bankName is required for bank accounts');
+    const opening = roundMoney(dto.openingBalance ?? '0');
+    const prefix = opts.glPrefix ?? (dto.kind === 'BANK' ? '1102' : '1101');
+    const parent = await tx.account.findUniqueOrThrow({ where: { code: opts.glParentCode ?? '11' } });
+    const gl = await tx.account.create({
+      data: {
+        code: `${prefix}.${dto.code}`,
+        nameAr: dto.nameAr,
+        nameEn: dto.nameEn,
+        type: 'ASSET',
+        normalBalance: 'DEBIT',
+        parentId: parent.id,
+        isPostable: true,
+      },
+    });
+    const created = await tx.financialAccount.create({
+      data: {
+        code: dto.code,
+        kind: dto.kind,
+        nameAr: dto.nameAr,
+        nameEn: dto.nameEn,
+        bankName: dto.bankName,
+        accountNumber: dto.accountNumber,
+        glAccountId: gl.id,
+      },
+    });
+    if (opening.gt(0)) {
+      const acc = await this.accounts.resolve(['OPENING_EQUITY'], tx);
+      await this.posting.post(
+        {
+          entryDate: toDate(dto.openingDate ?? new Date().toISOString()),
+          description: `Opening balance: ${dto.code}`,
+          source: 'OPENING_BALANCE',
+          sourceId: created.id,
+          idempotencyKey: `opening:fa:${created.id}`,
+          createdById: actorId,
+          lines: [
+            { accountId: gl.id, debit: opening, credit: 0 },
+            { accountId: acc.OPENING_EQUITY, debit: 0, credit: opening },
+          ],
+        },
+        tx,
+      );
+    }
+    return created;
   }
 }

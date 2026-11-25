@@ -25,6 +25,7 @@ model User {
   roles         UserRole[]
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
+  representative Representative?
 
   @@index([isActive])
 }
@@ -337,11 +338,17 @@ model Customer {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  routeId          String?
+
+  region         GeoArea?        @relation(fields: [regionId], references: [id])
+  route          Route?          @relation(fields: [routeId], references: [id])
+  representative Representative? @relation(fields: [representativeId], references: [id])
   prices CustomerPrice[]
   salesInvoices SalesInvoice[]
 
   @@index([nameAr])
   @@index([regionId])
+  @@index([routeId])
   @@index([representativeId])
 }
 
@@ -378,7 +385,6 @@ model Warehouse {
   nameAr    String
   nameEn    String
   type      WarehouseType @default(MAIN)
-  vehicleId String?       @unique
   isActive  Boolean       @default(true)
 
   balances      StockBalance[]
@@ -387,6 +393,7 @@ model Warehouse {
   transfersTo   StockTransfer[] @relation("TransferTo")
   salesInvoices SalesInvoice[]
   purchaseInvoices PurchaseInvoice[]
+  vehicle Vehicle?
 }
 
 model StockBalance {
@@ -632,6 +639,7 @@ model FinancialAccount {
   incomingTransfers Voucher[]     @relation("VoucherTo")
   cheques         Cheque[]
   reconciliations BankReconciliation[]
+  representative  Representative?
 }
 
 enum VoucherType {
@@ -656,6 +664,8 @@ model Voucher {
   idempotencyKey      String      @unique
   journalEntryId      String?
   representativeId    String?
+  vehicleId           String? // set on vehicle operating-expense payments
+  expenseCategory     String? // FUEL | MAINTENANCE | LICENSE | INSURANCE | OTHER
   cancelReason        String?
   cancelledAt         DateTime?
   createdById         String?
@@ -667,6 +677,7 @@ model Voucher {
   @@index([financialAccountId, voucherDate])
   @@index([partyType, partyId])
   @@index([representativeId, voucherDate])
+  @@index([vehicleId, voucherDate])
 }
 
 enum ChequeDirection {
@@ -730,4 +741,172 @@ model ReconciledLine {
   reconciliation BankReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
 
   @@index([reconciliationId])
+}
+
+// ---------------------------------------------------------------
+// Distribution: geography, routes, vehicles, representatives
+// ---------------------------------------------------------------
+
+enum GeoLevel {
+  CITY
+  REGION
+  DISTRICT
+}
+
+model GeoArea {
+  id        String   @id @default(uuid())
+  level     GeoLevel
+  parentId  String?
+  nameAr    String
+  nameEn    String
+  createdAt DateTime @default(now())
+
+  parent    GeoArea?   @relation("GeoTree", fields: [parentId], references: [id])
+  children  GeoArea[]  @relation("GeoTree")
+  customers Customer[]
+  routes    Route[]
+
+  @@index([parentId])
+  @@index([level])
+}
+
+model Route {
+  id        String  @id @default(uuid())
+  code      String  @unique
+  nameAr    String
+  nameEn    String
+  geoAreaId String?
+  isActive  Boolean @default(true)
+
+  geoArea         GeoArea?         @relation(fields: [geoAreaId], references: [id])
+  customers       Customer[]
+  representatives Representative[]
+  vehicles        Vehicle[]
+}
+
+model Vehicle {
+  id              String    @id @default(uuid())
+  plateNumber     String    @unique
+  model           String
+  driverName      String?
+  routeId         String?
+  licenseExpiry   DateTime? @db.Date
+  insuranceExpiry DateTime? @db.Date
+  warehouseId     String    @unique
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+
+  route          Route?          @relation(fields: [routeId], references: [id])
+  warehouse      Warehouse       @relation(fields: [warehouseId], references: [id])
+  representative Representative?
+}
+
+model Representative {
+  id                 String   @id @default(uuid())
+  code               String   @unique
+  nameAr             String
+  nameEn             String?
+  phone              String?
+  userId             String?  @unique
+  routeId            String?
+  vehicleId          String?  @unique
+  /// The representative's cash custody: a cash box whose GL account sits under "Custodies".
+  financialAccountId String   @unique
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+
+  user             User?            @relation(fields: [userId], references: [id])
+  route            Route?           @relation(fields: [routeId], references: [id])
+  vehicle          Vehicle?         @relation(fields: [vehicleId], references: [id])
+  financialAccount FinancialAccount @relation(fields: [financialAccountId], references: [id])
+  customers        Customer[]
+  closings         RepClosing[]
+  commissionRules  CommissionRule[]
+  commissionEntries CommissionEntry[]
+}
+
+enum CommissionBasis {
+  SALES
+  COLLECTIONS
+  MARGIN
+}
+
+/// Most specific matching rule wins: representative > product > customer > area.
+model CommissionRule {
+  id               String          @id @default(uuid())
+  representativeId String? // null = applies to every representative
+  basis            CommissionBasis
+  ratePercent      Decimal         @db.Decimal(7, 4)
+  productId        String?
+  customerId       String?
+  geoAreaId        String?
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+
+  representative Representative? @relation(fields: [representativeId], references: [id])
+
+  @@index([basis, isActive])
+}
+
+/// One row per commissioned document. sourceKey is unique, so a document is never commissioned twice.
+model CommissionEntry {
+  id               String    @id @default(uuid())
+  representativeId String
+  sourceKey        String    @unique // e.g. SALES_INVOICE:<id>, VOUCHER:<id>, REVERSAL:<key>
+  sourceType       String
+  sourceId         String
+  amount           Decimal   @db.Decimal(18, 2) // signed
+  closingId        String?
+  journalEntryId   String?
+  paidAt           DateTime?
+  paymentVoucherId String?
+  createdAt        DateTime  @default(now())
+
+  representative Representative @relation(fields: [representativeId], references: [id])
+
+  @@index([representativeId, paidAt])
+  @@index([sourceType, sourceId])
+}
+
+model RepClosing {
+  id                   String   @id @default(uuid())
+  representativeId     String
+  closingDate          DateTime @db.Date
+  salesCash            Decimal  @db.Decimal(18, 2)
+  salesCredit          Decimal  @db.Decimal(18, 2)
+  salesReturns         Decimal  @db.Decimal(18, 2)
+  collections          Decimal  @db.Decimal(18, 2)
+  openingCash          Decimal  @db.Decimal(18, 2)
+  expectedCash         Decimal  @db.Decimal(18, 2)
+  declaredCash         Decimal  @db.Decimal(18, 2)
+  cashDifference       Decimal  @db.Decimal(18, 2) // declared - expected: negative = shortage
+  loadedValue          Decimal  @db.Decimal(18, 2)
+  stockDifferenceValue Decimal  @db.Decimal(18, 2) // counted - expected valued at cost: negative = shortage
+  commissionTotal      Decimal  @db.Decimal(18, 2)
+  createdById          String?
+  createdAt            DateTime @default(now())
+
+  representative Representative  @relation(fields: [representativeId], references: [id])
+  lines          RepClosingLine[]
+
+  @@unique([representativeId, closingDate])
+}
+
+model RepClosingLine {
+  id           String  @id @default(uuid())
+  closingId    String
+  productId    String
+  openingQty   Decimal @db.Decimal(18, 4)
+  loadedQty    Decimal @db.Decimal(18, 4)
+  soldQty      Decimal @db.Decimal(18, 4)
+  returnedQty  Decimal @db.Decimal(18, 4) // good returns restocked
+  damagedQty   Decimal @db.Decimal(18, 4) // damaged returns (never restocked)
+  unloadedQty  Decimal @db.Decimal(18, 4) // sent back to the main warehouse
+  expectedQty  Decimal @db.Decimal(18, 4)
+  countedQty   Decimal @db.Decimal(18, 4)
+  differenceQty Decimal @db.Decimal(18, 4)
+
+  closing RepClosing @relation(fields: [closingId], references: [id], onDelete: Cascade)
+
+  @@index([closingId])
 }

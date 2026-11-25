@@ -42,7 +42,8 @@ export const ROLE_PERMISSIONS: Record<RoleCode, PermissionCode[]> = {
     ...crud('sales', ['view', 'create', 'update', 'approve', 'cancel']),
     ...crud('customers'),
     ...crud('products', ['view']),
-    ...crud('representatives', ['view', 'update']),
+    ...crud('representatives', ['view', 'update', 'create', 'approve']),
+    ...crud('vehicles'),
     ...crud('routes'),
     ...crud('reports', ['view']),
     'sales:discount',
@@ -59,6 +60,8 @@ export const ROLE_PERMISSIONS: Record<RoleCode, PermissionCode[]> = {
   ],
   REPRESENTATIVE: [
     ...crud('customers', ['view']),
+    ...crud('representatives', ['view']),
+    ...crud('routes', ['view']),
     ...crud('products', ['view']),
     ...crud('sales', ['view', 'create']),
     ...crud('inventory', ['view']),
