@@ -13,6 +13,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { PartiesModule } from './modules/parties/parties.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
 import { HrModule } from './modules/hr/hr.module';
+import { SyncModule } from './modules/sync/sync.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { RepresentativesModule } from './modules/representatives/representatives.module';
 import { RoutesModule } from './modules/routes/routes.module';
@@ -44,6 +45,7 @@ import { UsersModule } from './modules/users/users.module';
     RepresentativesModule,
     ReportsModule,
     HrModule,
+    SyncModule,
   ],
   controllers: [HealthController],
   providers: [

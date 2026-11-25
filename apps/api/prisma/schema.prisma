@@ -1049,3 +1049,29 @@ model PayrollLine {
 
   @@unique([runId, employeeId])
 }
+
+// ============================================================================
+// Phase 10: offline synchronisation
+// ============================================================================
+
+enum SyncStatus {
+  APPLIED
+  REJECTED
+}
+
+/// One row per operation a device has pushed. The client-generated opId is the idempotency key.
+model SyncOperation {
+  id              String     @id @default(uuid())
+  opId            String     @unique
+  userId          String
+  deviceId        String
+  type            String
+  status          SyncStatus
+  payload         Json
+  resultId        String?
+  error           String?
+  clientCreatedAt DateTime
+  receivedAt      DateTime   @default(now())
+
+  @@index([userId, receivedAt])
+}
