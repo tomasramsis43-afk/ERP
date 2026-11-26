@@ -45,18 +45,23 @@ async function seedAccessControl(): Promise<void> {
 }
 
 async function seedAdmin(): Promise<void> {
-  const email = process.env.SEED_ADMIN_EMAIL?.toLowerCase();
+  const email = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
   const password = process.env.SEED_ADMIN_PASSWORD;
   if (!email || !password || password.startsWith('CHANGE_ME')) {
     console.warn('SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD not set to real values; skipping admin user.');
     return;
   }
   const role = await prisma.role.findUniqueOrThrow({ where: { code: 'SYSTEM_ADMIN' } });
+  // Normally an existing admin is left untouched (its password may have been changed after first login).
+  // Set SEED_ADMIN_RESET=true for one deploy to force the password (and active flag) to the env values.
+  const reset = process.env.SEED_ADMIN_RESET === 'true';
+  const passwordHash = await bcrypt.hash(password, 12);
   const user = await prisma.user.upsert({
     where: { email },
-    update: {},
-    create: { email, fullName: 'System Administrator', passwordHash: await bcrypt.hash(password, 12) },
+    update: reset ? { passwordHash, isActive: true } : {},
+    create: { email, fullName: 'System Administrator', passwordHash },
   });
+  if (reset) console.warn(`SEED_ADMIN_RESET=true: password reset for ${email}. Remove this variable afterwards.`);
   await prisma.userRole.upsert({
     where: { userId_roleId: { userId: user.id, roleId: role.id } },
     update: {},
