@@ -13,7 +13,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        sync: false # Neon connection string (direct, not pooled), ending with ?sslmode=require
+        sync: false # Neon connection string (direct, not pooled), ending with ?sslmode=require&connect_timeout=30 (a sleeping free Neon database needs a longer connect timeout)
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET

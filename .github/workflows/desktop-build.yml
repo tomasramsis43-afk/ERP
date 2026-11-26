@@ -3,6 +3,7 @@ name: Build Desktop (Windows)
 on:
   push:
     branches: [main]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -23,9 +24,13 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
       - name: Install dependencies
         run: npm ci
-      - name: Approve Electron install scripts
-        run: npx --yes npm approve-scripts electron || true
-      - name: Build & publish
+      # Every push builds the EXE and keeps it as a workflow artifact.
+      # A GitHub Release (used by the auto-updater) is published only for version tags: git tag v0.1.0 && git push --tags
+      - name: Build (no publish)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: npm run dist -- --publish never
+      - name: Build and publish release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run dist -- --publish always

@@ -6,26 +6,44 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  verify:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/mobile
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: npm   # the lockfile lives at the repository root (npm workspaces)
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck --workspace @erp/mobile
+      - name: Unit tests
+        run: npm test --workspace @erp/mobile
+
+  apk:
+    # The APK is built on Expo's servers; run it manually once EXPO_TOKEN is set (see docs).
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
           cache: npm
-          cache-dependency-path: apps/mobile/package-lock.json
-      - name: Setup EAS
-        uses: expo/expo-github-action@v8
+      - name: Require EXPO_TOKEN
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Add the EXPO_TOKEN repository secret (expo.dev > Access tokens) and run 'eas init' once so app.json gets extra.eas.projectId."
+            exit 1
+          fi
+      - uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci
       - name: Build APK
+        working-directory: apps/mobile
         run: eas build --platform android --profile preview --non-interactive --no-wait
-      - name: Typecheck
-        run: npm run typecheck
