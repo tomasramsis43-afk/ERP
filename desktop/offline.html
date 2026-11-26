@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><meta charset="utf-8"><title>ERP</title>
+<body style="font-family:Segoe UI,Tahoma,sans-serif;text-align:center;padding:15vh 2rem">
+<h2>تعذّر الاتصال بالخادم</h2>
+<p>تأكد من اتصال الإنترنت ثم أعد المحاولة. قد يستغرق الخادم دقيقة ليستيقظ.</p>
+<p dir="ltr">Cannot reach the server. Check your internet connection and retry.</p>
+<button onclick="location.href=location.href.startsWith('file')?'javascript:history.back()':location.href" style="font-size:1rem;padding:.5rem 1.5rem">إعادة المحاولة / Retry</button>
+<script>document.querySelector('button').onclick=()=>{fetch('config.json').then(r=>r.json()).then(c=>location.href=c.url)}</script>
+</body></html>

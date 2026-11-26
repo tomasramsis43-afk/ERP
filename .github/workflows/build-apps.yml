@@ -1,0 +1,74 @@
+name: Build apps (APK + Windows EXE)
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "API address, e.g. https://erp-api-mw0w.onrender.com/api/v1"
+        required: true
+      web_url:
+        description: "Web address, e.g. https://erp-web-xxxx.onrender.com"
+        required: true
+      tag:
+        description: "Release tag"
+        required: true
+        default: "apps-v0.1.0"
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - run: npm ci
+      - name: Point the app at the server
+        run: |
+          node -e "
+          const f='apps/mobile/app.json';const j=JSON.parse(require('fs').readFileSync(f));
+          j.expo.extra.apiUrl=process.argv[1];
+          require('fs').writeFileSync(f,JSON.stringify(j,null,2));" "${{ inputs.api_url }}"
+      - name: Generate the Android project
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform android --no-install
+      - name: Build the APK (debug-signed, for testing)
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease --no-daemon
+      - run: cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk ERP-Field.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: apk, path: ERP-Field.apk }
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Point the app at the web console
+        shell: bash
+        run: echo '{ "url": "${{ inputs.web_url }}" }' > desktop/config.json
+      - name: Build the portable EXE
+        working-directory: desktop
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          npm run dist
+      - uses: actions/upload-artifact@v4
+        with: { name: exe, path: desktop/dist/*.exe }
+
+  release:
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Publish a GitHub release with both files
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh release create "${{ inputs.tag }}" apk/ERP-Field.apk exe/*.exe \
+            --repo "${{ github.repository }}" --title "ERP apps ${{ inputs.tag }}" \
+            --notes "Android APK (debug-signed, for testing) and Windows portable EXE."
