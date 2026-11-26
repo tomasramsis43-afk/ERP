@@ -18,7 +18,8 @@ function required(name: string): string {
 
 export function loadEnv(): AppEnv {
   return {
-    port: Number(process.env.API_PORT ?? 3001),
+    // Hosting platforms (Render, Heroku...) announce the port in PORT.
+    port: Number(process.env.API_PORT ?? process.env.PORT ?? 3001),
     nodeEnv: process.env.NODE_ENV ?? 'development',
     corsOrigins: (process.env.CORS_ORIGINS ?? '').split(',').filter(Boolean),
     jwtAccessSecret: required('JWT_ACCESS_SECRET'),

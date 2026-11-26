@@ -1,0 +1,33 @@
+# Render Blueprint: deploys the API and the web app from this repository.
+# The database lives on Neon; paste its connection string when Render asks for DATABASE_URL.
+services:
+  - type: web
+    name: erp-api
+    runtime: docker
+    dockerfilePath: ./infrastructure/docker/api.Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # Neon connection string (direct, not pooled), ending with ?sslmode=require
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: SEED_ADMIN_EMAIL
+        sync: false # the first administrator's email
+      - key: SEED_ADMIN_PASSWORD
+        sync: false # a strong password; change it after the first login
+
+  - type: web
+    name: erp-web
+    runtime: docker
+    dockerfilePath: ./infrastructure/docker/web.Dockerfile
+    dockerContext: .
+    autoDeploy: true
+    envVars:
+      - key: API_URL
+        sync: false # https://<your erp-api service>.onrender.com/api/v1
