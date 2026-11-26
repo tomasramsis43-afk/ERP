@@ -21,12 +21,12 @@ export default function LedgerPage() {
 
   const accounts = useApi<Account[]>('accounting/accounts');
   const postable = (accounts.data ?? []).filter((a) => a.isPostable);
-  const tb = useApi<TBRow[]>(`accounting/reports/trial-balance?asOf=${asOf}`);
+  const tb = useApi<{ asOf: string; rows: TBRow[] }>(`accounting/reports/trial-balance?asOf=${asOf}`);
   const ledgerPath = useMemo(() => (accountId ? `accounting/reports/ledger/${accountId}?from=${from}&to=${to}&page=${page}&pageSize=${pageSize}` : null), [accountId, from, to, page, pageSize]);
   const ledger = usePaged<LedgerRow>(ledgerPath);
 
   const tbTotals = useMemo(() => {
-    const rows = tb.data ?? [];
+    const rows = tb.data?.rows ?? [];
     return rows.reduce((a, r) => ({ d: a.d + Number(r.closingDebit), c: a.c + Number(r.closingCredit) }), { d: 0, c: 0 });
   }, [tb.data]);
 
@@ -48,13 +48,13 @@ export default function LedgerPage() {
               <Input type="date" dir="ltr" value={asOf} onChange={(e) => setAsOf(e.target.value)} style={{ width: 160 }} />
             </label>
             <div className="spacer" />
-            {tb.data ? <span className="muted">{tr('الحسابات', 'Accounts')}: {tb.data.length}</span> : null}
+            {tb.data ? <span className="muted">{tr('الحسابات', 'Accounts')}: {tb.data.rows.length}</span> : null}
           </div>
           <ErrorNote error={tb.error} />
           {tb.loading && !tb.data ? <Loading /> : null}
           {tb.data ? (
             <DataTable<TBRow>
-              rows={tb.data}
+              rows={tb.data.rows}
               rowKey={(r) => r.accountId}
               columns={[
                 { key: 'code', header: tr('الكود', 'Code'), width: '110px', render: (r) => <span className="tree-code">{r.code}</span> },
