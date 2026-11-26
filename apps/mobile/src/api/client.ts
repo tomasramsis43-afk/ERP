@@ -1,9 +1,11 @@
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
+import { normalizeServerUrl } from '../core/serverUrl';
 import { ServerResult } from '../core/outbox';
 import { Snapshot, SyncApi } from '../sync/syncEngine';
 
-const BASE = (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ?? 'http://10.0.2.2:3001/api/v1';
+const DEFAULT_BASE = (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ?? 'http://10.0.2.2:3001/api/v1';
+const SERVER = 'erp.server';
 const ACCESS = 'erp.access';
 const REFRESH = 'erp.refresh';
 
@@ -13,7 +15,19 @@ export class ApiError extends Error {
   }
 }
 
+export async function getServerUrl(): Promise<string> {
+  return (await SecureStore.getItemAsync(SERVER)) ?? DEFAULT_BASE;
+}
+
+/** Accepts what the user typed, validates it, stores the normalised API base URL, and returns it. */
+export async function setServerUrl(input: string): Promise<string> {
+  const url = normalizeServerUrl(input);
+  await SecureStore.setItemAsync(SERVER, url);
+  return url;
+}
+
 async function raw(path: string, init: RequestInit & { token?: string }): Promise<Response> {
+  const BASE = await getServerUrl();
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(init.headers as Record<string, string>) };
   if (init.token) headers.Authorization = `Bearer ${init.token}`;
   return fetch(`${BASE}${path}`, { ...init, headers });

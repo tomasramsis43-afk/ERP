@@ -6,8 +6,28 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "supportsRtl": true,
-    "ios": { "supportsTablet": false, "bundleIdentifier": "com.example.erpfield" },
-    "android": { "package": "com.example.erpfield" },
-    "extra": { "apiUrl": "http://10.0.2.2:3001/api/v1" }
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.example.erpfield"
+    },
+    "android": {
+      "package": "com.example.erpfield",
+      "versionCode": 1
+    },
+    "extra": {
+      "apiUrl": "http://10.0.2.2:3001/api/v1"
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ]
   }
 }
