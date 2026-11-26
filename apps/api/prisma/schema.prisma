@@ -282,6 +282,8 @@ model Product {
   units         ProductUnit[]
   customerPrices CustomerPrice[]
   balances      StockBalance[]
+  stockCountLines StockCountLine[]
+  stockCounts   StockCount[]
   movements     StockMovement[]
   transferLines StockTransferLine[]
   salesLines    SalesInvoiceLine[]
@@ -1076,4 +1078,44 @@ model SyncOperation {
   receivedAt      DateTime   @default(now())
 
   @@index([userId, receivedAt])
+}
+
+enum StockCountStatus {
+  DRAFT
+  APPROVED
+  CANCELLED
+}
+
+/// A physical inventory count (جرد). Approving it books the differences as stock adjustments.
+model StockCount {
+  id           String           @id @default(uuid())
+  number       Int              @unique @default(autoincrement())
+  warehouseId  String
+  countDate    DateTime         @db.Date
+  status       StockCountStatus @default(DRAFT)
+  note         String?
+  createdById  String?
+  approvedById String?
+  approvedAt   DateTime?
+  createdAt    DateTime         @default(now())
+
+  warehouse Warehouse        @relation(fields: [warehouseId], references: [id])
+  lines     StockCountLine[]
+
+  @@index([warehouseId, status])
+}
+
+model StockCountLine {
+  id           String   @id @default(uuid())
+  stockCountId String
+  productId    String
+  /// Snapshot of the system balance (base units) when the line was added.
+  systemQty    Decimal  @db.Decimal(18, 4)
+  /// Null until the line has been physically counted; uncounted lines are ignored on approval.
+  countedQty   Decimal? @db.Decimal(18, 4)
+
+  stockCount StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id])
+
+  @@unique([stockCountId, productId])
 }

@@ -1,15 +1,56 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthUser, CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators';
 import { parsePage } from '../../common/utils/pagination';
 import { AdjustmentDto, OpeningStockDto, TransferDto } from './dto/inventory.dto';
+import { CreateStockCountDto, SetCountsDto } from './dto/stock-count.dto';
 import { InventoryService } from './inventory.service';
+import { StockCountsService } from './stock-counts.service';
 
 @ApiTags('inventory')
 @ApiBearerAuth()
 @Controller('inventory')
 export class InventoryController {
-  constructor(private readonly inventory: InventoryService) {}
+  constructor(
+    private readonly inventory: InventoryService,
+    private readonly counts: StockCountsService,
+  ) {}
+
+  @Get('counts')
+  @RequirePermissions('inventory:view')
+  listCounts(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('warehouseId') warehouseId?: string, @Query('status') status?: string) {
+    return this.counts.list(parsePage(page, pageSize, 20, 100), { warehouseId, status });
+  }
+
+  @Get('counts/:id')
+  @RequirePermissions('inventory:view')
+  getCount(@Param('id', ParseUUIDPipe) id: string) {
+    return this.counts.get(id);
+  }
+
+  @Post('counts')
+  @RequirePermissions('inventory:create')
+  createCount(@Body() dto: CreateStockCountDto, @CurrentUser() u: AuthUser) {
+    return this.counts.create(dto, u.id);
+  }
+
+  @Put('counts/:id/lines')
+  @RequirePermissions('inventory:update')
+  setCountLines(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetCountsDto, @CurrentUser() u: AuthUser) {
+    return this.counts.setCounts(id, dto, u.id);
+  }
+
+  @Post('counts/:id/approve')
+  @RequirePermissions('inventory:approve')
+  approveCount(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: AuthUser) {
+    return this.counts.approve(id, u.id);
+  }
+
+  @Post('counts/:id/cancel')
+  @RequirePermissions('inventory:update')
+  cancelCount(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: AuthUser) {
+    return this.counts.cancel(id, u.id);
+  }
 
   @Get('balances')
   @RequirePermissions('inventory:view')
