@@ -23,7 +23,7 @@ d('stock counts (end to end, requires seeded PostgreSQL)', () => {
   }
   async function trialBalanced(): Promise<boolean> {
     const r = await http.get('/accounting/reports/trial-balance').set(auth()).expect(200);
-    return Number(r.body.totals.closingDebit) === Number(r.body.totals.closingCredit);
+    return r.body.balanced === true;
   }
 
   beforeAll(async () => {
