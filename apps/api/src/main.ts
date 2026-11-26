@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -9,7 +10,11 @@ import { loadEnv } from './config/env';
 
 async function bootstrap(): Promise<void> {
   const env = loadEnv();
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Render (and most hosts) put a load balancer in front: trust one hop so req.ip is the caller,
+  // not the balancer (rate limiting and the audit log both use it).
+  app.set('trust proxy', 1);
 
   app.use(helmet());
   app.enableCors({ origin: env.corsOrigins, credentials: true });

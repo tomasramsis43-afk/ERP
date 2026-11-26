@@ -14,12 +14,10 @@
       "package": "com.example.erpfield",
       "versionCode": 1
     },
-    "updates": {
-    "url": "https://u.expo.dev/00000000-0000-0000-0000-000000000000"
-  },
-  "runtimeVersion": {
-    "policy": "appVersion"
-  },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "extra": {
       "apiUrl": "https://erp-api-mw0w.onrender.com/api/v1"
     },
     "plugins": [
