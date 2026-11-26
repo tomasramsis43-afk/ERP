@@ -312,7 +312,16 @@ export class InventoryService {
         : {}),
     };
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.stockMovement.findMany({ where, orderBy: { number: 'desc' }, skip: p.skip, take: p.pageSize }),
+      this.prisma.stockMovement.findMany({
+        where,
+        include: {
+          product: { select: { code: true, nameAr: true, nameEn: true } },
+          warehouse: { select: { code: true, nameAr: true, nameEn: true } },
+        },
+        orderBy: { number: 'desc' },
+        skip: p.skip,
+        take: p.pageSize,
+      }),
       this.prisma.stockMovement.count({ where }),
     ]);
     return { items, total, page: p.page, pageSize: p.pageSize };

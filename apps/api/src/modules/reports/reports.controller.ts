@@ -5,6 +5,7 @@ import { AgingReportService } from './aging-report.service';
 import { DashboardService } from './dashboard.service';
 import { Lang } from './export-tables';
 import { renderPdf, renderXlsx } from './exporters';
+import { ProfitabilityService } from './profitability.service';
 import { REPORT_NAMES, ReportName, ReportTablesService } from './report-tables.service';
 import { StatementsService } from './statements.service';
 
@@ -19,6 +20,7 @@ export class ReportsController {
     private readonly statements: StatementsService,
     private readonly aging: AgingReportService,
     private readonly tables: ReportTablesService,
+    private readonly profitability: ProfitabilityService,
   ) {}
 
   @Get('dashboard')
@@ -52,6 +54,21 @@ export class ReportsController {
   agingReport(@Param('type') type: string, @Query('asOf') asOf?: string) {
     if (type !== 'customers' && type !== 'suppliers') throw new BadRequestException('type must be customers or suppliers');
     return this.aging.report(type === 'customers' ? 'CUSTOMER' : 'SUPPLIER', asOf);
+  }
+
+  /** Gross profit by product, customer or geographic area, net of returns. */
+  @Get('profitability')
+  @RequirePermissions('reports:view')
+  profitabilityReport(
+    @Query('dimension') dimension = 'product',
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    if (dimension !== 'product' && dimension !== 'customer' && dimension !== 'area') {
+      throw new BadRequestException('dimension must be product, customer or area');
+    }
+    this.need(from, to);
+    return this.profitability.report(dimension, from, to);
   }
 
   /** `format` is xlsx (default) or pdf; `lang` is ar or en. */

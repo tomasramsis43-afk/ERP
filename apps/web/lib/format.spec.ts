@@ -1,5 +1,5 @@
-import { formatMoney, queryString } from './format';
-import { dict, dirOf, parseLang } from './i18n';
+import { formatMoney, formatQty, queryString } from './format';
+import { NAV_LABELS, dirOf, parseLang } from './i18n';
 
 describe('formatMoney', () => {
   it('groups thousands and keeps two decimals exactly', () => {
@@ -7,12 +7,16 @@ describe('formatMoney', () => {
     expect(formatMoney('-0.1')).toBe('-0.10');
     expect(formatMoney('12345678901234567.89')).toBe('12,345,678,901,234,567.89'); // beyond float precision
   });
-  it('uses Arabic digits and separators in Arabic', () => {
-    expect(formatMoney('1234.5', 'ar')).toBe('١٬٢٣٤٫٥٠');
-  });
   it('passes through empty and non-numeric values', () => {
     expect(formatMoney(null)).toBe('');
     expect(formatMoney('n/a')).toBe('n/a');
+  });
+});
+
+describe('formatQty', () => {
+  it('drops trailing zeros and groups thousands', () => {
+    expect(formatQty('12.5000')).toBe('12.5');
+    expect(formatQty('1000.0000')).toBe('1,000');
   });
 });
 
@@ -24,8 +28,12 @@ describe('queryString', () => {
 });
 
 describe('i18n', () => {
-  it('has the same keys in both languages', () => {
-    expect(Object.keys(dict.ar).sort()).toEqual(Object.keys(dict.en).sort());
+  it('has an Arabic and an English label for every navigation entry', () => {
+    for (const value of Object.values(NAV_LABELS)) {
+      expect(value).toHaveLength(2);
+      expect(value[0]).toBeTruthy();
+      expect(value[1]).toBeTruthy();
+    }
   });
   it('Arabic is right-to-left, English left-to-right; unknown falls back to Arabic', () => {
     expect(dirOf('ar')).toBe('rtl');

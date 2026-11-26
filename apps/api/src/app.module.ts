@@ -6,6 +6,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { PrismaModule } from './database/prisma.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
@@ -46,6 +47,7 @@ import { UsersModule } from './modules/users/users.module';
     ReportsModule,
     HrModule,
     SyncModule,
+    AdminModule,
   ],
   controllers: [HealthController],
   providers: [
