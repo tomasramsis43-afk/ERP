@@ -883,6 +883,8 @@ model RepClosing {
   loadedValue          Decimal  @db.Decimal(18, 2)
   stockDifferenceValue Decimal  @db.Decimal(18, 2) // counted - expected valued at cost: negative = shortage
   commissionTotal      Decimal  @db.Decimal(18, 2)
+  /// Mandatory whenever the cash or stock count differs from the system (documented shortage/overage).
+  differenceReason     String?
   createdById          String?
   createdAt            DateTime @default(now())
 

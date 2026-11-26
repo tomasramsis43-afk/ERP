@@ -106,6 +106,10 @@ export class CloseDayDto {
   @IsArray() @ArrayMaxSize(1000)
   @ValidateNested({ each: true }) @Type(() => CountLineDto)
   counts!: CountLineDto[];
+
+  /** Required when the declared cash or the counted stock differs from what the system expects. */
+  @IsOptional() @IsString() @MinLength(3) @MaxLength(500)
+  differenceReason?: string;
 }
 
 export class PayCommissionsDto {

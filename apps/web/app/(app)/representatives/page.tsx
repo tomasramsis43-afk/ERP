@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useApp, useConfirm, useToast } from '@/components/Providers';
-import { Badge, Button, DataTable, DateText, DetailGrid, EmptyState, ErrorNote, Field, IconButton, Input, Loading, Modal, Money, PageHeader, Pagination, Qty, Select, SummaryStrip, Tabs } from '@/components/ui';
+import { Badge, Button, DataTable, DateText, DetailGrid, EmptyState, ErrorNote, Field, IconButton, Input, Loading, Modal, Money, PageHeader, Pagination, Qty, Select, SummaryStrip, Tabs, Textarea } from '@/components/ui';
 import { ResourcePage } from '@/components/ResourcePage';
 import { useApi, useOptions, usePaged } from '@/lib/hooks';
 import { get, post } from '@/lib/api';
@@ -11,7 +11,7 @@ import { queryString, today } from '@/lib/format';
 interface Rep { id: string; code: string; nameAr: string; nameEn: string | null; isActive: boolean; custodyBalance?: string; route?: { nameAr: string } | null; vehicle?: { plateNumber: string } | null }
 interface Rule { id: string; representativeId: string | null; basis: 'SALES' | 'COLLECTIONS' | 'MARGIN'; ratePercent: string; productId: string | null; customerId: string | null; geoAreaId: string | null; createdAt: string }
 interface Commission { id: string; sourceType: string; amount: string; createdAt: string; paidAt: string | null }
-interface ClosingRow { id: string; closingDate: string; salesCash: string; salesCredit: string; collections: string; expectedCash: string; declaredCash: string; cashDifference: string; stockDifferenceValue: string; commissionTotal: string }
+interface ClosingRow { differenceReason?: string | null; id: string; closingDate: string; salesCash: string; salesCredit: string; collections: string; expectedCash: string; declaredCash: string; cashDifference: string; stockDifferenceValue: string; commissionTotal: string }
 
 const BASIS_LABEL = (tr: (a: string, e: string) => string): Record<string, string> => ({
   SALES: tr('نسبة من المبيعات', '% of sales'),
@@ -131,6 +131,7 @@ function ClosingTab({ rep, onClosed }: { rep: Rep; onClosed: () => void }) {
   const [preview, setPreview] = useState<any>(null);
   const [declared, setDeclared] = useState('');
   const [counts, setCounts] = useState<Record<string, string>>({});
+  const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -142,6 +143,7 @@ function ClosingTab({ rep, onClosed }: { rep: Rep; onClosed: () => void }) {
       // Deliberately empty: pre-filling the system's own numbers would hide real shortages.
       setDeclared('');
       setCounts({});
+      setReason('');
     } catch (e) { setErr((e as Error).message); setPreview(null); }
     finally { setBusy(false); }
   }
@@ -149,10 +151,11 @@ function ClosingTab({ rep, onClosed }: { rep: Rep; onClosed: () => void }) {
   const lines: any[] = preview?.lines ?? [];
   const cashDiff = preview && num(declared) !== null ? num(declared)! - Number(preview.expectedCash) : null;
   const missing = lines.filter((l) => num(counts[l.productId] ?? '') === null).length;
-  const ready = preview && num(declared) !== null && missing === 0;
+  const diffLines = lines.filter((l) => num(counts[l.productId] ?? '') !== null && Number(counts[l.productId]) !== Number(l.expectedQty)).length;
+  const hasDiff = Boolean(cashDiff) || diffLines > 0;
+  const ready = preview && num(declared) !== null && missing === 0 && (!hasDiff || reason.trim().length >= 3);
 
   async function doClose() {
-    const diffLines = lines.filter((l) => Number(counts[l.productId]) !== Number(l.expectedQty)).length;
     const ok = await confirm({
       title: tr('تأكيد إقفال اليوم', 'Confirm day closing'),
       message: tr(
@@ -169,6 +172,7 @@ function ClosingTab({ rep, onClosed }: { rep: Rep; onClosed: () => void }) {
         date,
         declaredCash: String(num(declared)),
         counts: lines.map((l) => ({ productId: l.productId, quantity: String(num(counts[l.productId] ?? '')) })),
+        ...(hasDiff ? { differenceReason: reason.trim() } : {}),
       });
       toast.success(tr('تم إقفال اليوم', 'Day closed'));
       onClosed();
@@ -215,6 +219,13 @@ function ClosingTab({ rep, onClosed }: { rep: Rep; onClosed: () => void }) {
               </tbody>
             </table>
           </div>
+          {hasDiff ? (
+            <div className="mt-16">
+              <Field label={tr('سبب الفرق (إلزامي)', 'Reason for the difference (required)')} required hint={tr('يُسجَّل مع الإقفال ويظهر في السجل', 'Stored with the closing')}>
+                <Textarea value={reason} onChange={(e) => setReason(e.target.value)} />
+              </Field>
+            </div>
+          ) : null}
           <div className="page-actions" style={{ marginTop: 12, justifyContent: 'flex-end' }}>
             <Button loading={busy} disabled={!ready} onClick={doClose}>{tr('إقفال اليوم', 'Close day')}</Button>
           </div>
@@ -243,6 +254,7 @@ function HistoryTab({ repId }: { repId: string }) {
           { key: 'cd', header: tr('فرق النقدية', 'Cash diff'), align: 'end', render: (r) => <Badge tone={Number(r.cashDifference) === 0 ? 'ok' : 'danger'}>{r.cashDifference}</Badge> },
           { key: 'sd', header: tr('فرق المخزون (قيمة)', 'Stock diff (value)'), align: 'end', render: (r) => <Badge tone={Number(r.stockDifferenceValue) === 0 ? 'ok' : 'danger'}>{r.stockDifferenceValue}</Badge> },
           { key: 'cm', header: tr('العمولة', 'Commission'), align: 'end', render: (r) => <Money value={r.commissionTotal} /> },
+          { key: 'rs', header: tr('سبب الفرق', 'Reason'), render: (r) => r.differenceReason ?? '—' },
         ]}
         empty={<EmptyState title={tr('لا توجد إقفالات', 'No closings yet')} />}
       />
