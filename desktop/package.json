@@ -9,6 +9,9 @@
     "start": "electron .",
     "dist": "electron-builder --win portable --publish never"
   },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
   "devDependencies": {
     "electron": "33.2.1",
     "electron-builder": "25.1.8"
@@ -16,7 +19,26 @@
   "build": {
     "appId": "com.example.erpdesktop",
     "productName": "ERP",
-    "files": ["main.js", "offline.html", "config.json"],
-    "win": { "target": "portable", "artifactName": "ERP-${version}.exe" }
+    "files": [
+      "main.js",
+      "offline.html",
+      "config.json"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "tomasramsis43-afk",
+        "repo": "ERP",
+        "releaseType": "release"
+      }
+    ],
+    "win": {
+      "target": "portable",
+      "artifactName": "ERP-${version}.exe",
+      "signAndEditExecutable": false
+    }
+  },
+  "allowScripts": {
+    "electron@33.2.1": true
   }
 }

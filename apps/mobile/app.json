@@ -14,7 +14,12 @@
       "package": "com.example.erpfield",
       "versionCode": 1
     },
-    "extra": {
+    "updates": {
+    "url": "https://u.expo.dev/00000000-0000-0000-0000-000000000000"
+  },
+  "runtimeVersion": {
+    "policy": "appVersion"
+  },
       "apiUrl": "http://10.0.2.2:3001/api/v1"
     },
     "plugins": [
