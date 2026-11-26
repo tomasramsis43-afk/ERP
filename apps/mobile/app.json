@@ -20,7 +20,7 @@
   "runtimeVersion": {
     "policy": "appVersion"
   },
-      "apiUrl": "http://10.0.2.2:3001/api/v1"
+      "apiUrl": "https://erp-api-mw0w.onrender.com/api/v1"
     },
     "plugins": [
       "expo-sqlite",
