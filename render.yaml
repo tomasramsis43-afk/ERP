@@ -4,6 +4,7 @@ services:
   - type: web
     name: erp-api
     runtime: docker
+    plan: free
     dockerfilePath: ./infrastructure/docker/api.Dockerfile
     dockerContext: .
     healthCheckPath: /api/v1/health
@@ -25,6 +26,7 @@ services:
   - type: web
     name: erp-web
     runtime: docker
+    plan: free
     dockerfilePath: ./infrastructure/docker/web.Dockerfile
     dockerContext: .
     autoDeploy: true
