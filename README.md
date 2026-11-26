@@ -27,7 +27,8 @@ Everything below is covered by automated tests that run in CI on every push (Pos
 - The web app is a read/report-oriented admin console: creating and editing documents (invoices, vouchers, etc.) is done through the API (OpenAPI docs at `/api/docs`) for now.
 - The mobile app has no push notifications, barcode scanning or printing; it needs a real-device test pass before field use.
 - Mobile pull is a full snapshot (no incremental sync); fine for a route's customers and a catalogue, not for very large catalogues.
-- No external services are required beyond PostgreSQL and Redis. Optional: SMTP/SMS/payment gateways are not integrated.
+- Redis is provisioned in the compose files but no code uses it yet (rate limiting and sessions currently use in-process/PostgreSQL storage, so a multi-instance deployment would need Redis-backed throttling).
+- No external services are required beyond PostgreSQL. Optional: SMTP/SMS/payment gateways are not integrated.
 
 ## Stack
 TypeScript, NestJS 10, PostgreSQL 16, Prisma 5, decimal.js, Redis, Next.js 14, Expo 52 (React Native). See `docs/architecture/`.
