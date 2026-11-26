@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { ServerResult } from '../core/outbox';
 import { Snapshot, SyncApi } from '../sync/syncEngine';
 
-const BASE = (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ?? 'http://10.0.2.2:3000';
+const BASE = (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ?? 'http://10.0.2.2:3001/api/v1';
 const ACCESS = 'erp.access';
 const REFRESH = 'erp.refresh';
 

@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 
-export const API_URL = process.env.API_URL ?? 'http://localhost:3000';
+export const API_URL = process.env.API_URL ?? 'http://localhost:3001/api/v1';
 export const ACCESS_COOKIE = 'erp_access';
 export const REFRESH_COOKIE = 'erp_refresh';
 

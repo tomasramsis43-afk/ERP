@@ -23,7 +23,7 @@ WORKDIR /repo
 COPY --from=build /repo /repo
 WORKDIR /repo/apps/api
 USER node
-EXPOSE 3000
+EXPOSE 3001
 ENTRYPOINT ["/sbin/tini", "--"]
 # Apply migrations, make sure reference data exists (idempotent), then serve.
 CMD ["sh", "-c", "npx prisma migrate deploy && npx ts-node prisma/seed.ts && node dist/main.js"]

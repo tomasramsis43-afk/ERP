@@ -47,6 +47,24 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      - name: Smoke test the real server (global prefix, security headers, login)
+        working-directory: apps/api
+        env:
+          API_PORT: "3055"
+        run: |
+          npm run build
+          node dist/main.js > /tmp/api.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://localhost:3055/api/v1/health > /dev/null 2>&1 && break; sleep 1; done
+          curl -fsS http://localhost:3055/api/v1/health
+          curl -sI http://localhost:3055/api/v1/health | tee /tmp/headers.txt
+          grep -qi "x-content-type-options: nosniff" /tmp/headers.txt
+          ! grep -qi "x-powered-by" /tmp/headers.txt
+          TOKEN=$(curl -fsS -X POST http://localhost:3055/api/v1/auth/login -H 'Content-Type: application/json' \
+            -d "{\"email\":\"$SEED_ADMIN_EMAIL\",\"password\":\"$SEED_ADMIN_PASSWORD\"}" | node -e 'process.stdin.on("data",d=>console.log(JSON.parse(d).accessToken))')
+          test -n "$TOKEN"
+          curl -fsS http://localhost:3055/api/v1/reports/dashboard -H "Authorization: Bearer $TOKEN" > /dev/null
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3055/api/v1/customers)" = "401"
+          kill %1 || true
       - name: Backup and restore round trip
         run: |
           # The client tools must not be newer than the server (PostgreSQL 16).

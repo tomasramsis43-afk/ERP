@@ -14,11 +14,11 @@ RUN npm run build --workspace @erp/web
 
 FROM node:22-alpine AS run
 RUN apk add --no-cache tini
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3001 HOSTNAME=0.0.0.0
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 WORKDIR /app
 COPY --from=build /repo/apps/web/.next/standalone ./
 COPY --from=build /repo/apps/web/.next/static ./apps/web/.next/static
 USER node
-EXPOSE 3001
+EXPOSE 3000
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "apps/web/server.js"]

@@ -8,6 +8,6 @@
     "supportsRtl": true,
     "ios": { "supportsTablet": false, "bundleIdentifier": "com.example.erpfield" },
     "android": { "package": "com.example.erpfield" },
-    "extra": { "apiUrl": "http://10.0.2.2:3000" }
+    "extra": { "apiUrl": "http://10.0.2.2:3001/api/v1" }
   }
 }
