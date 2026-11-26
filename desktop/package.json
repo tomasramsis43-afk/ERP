@@ -7,7 +7,7 @@
   "author": "ERP",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win portable --publish never"
+    "dist": "electron-builder --win portable"
   },
   "dependencies": {
     "electron-updater": "^6.3.9"

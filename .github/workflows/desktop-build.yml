@@ -1,0 +1,37 @@
+name: Build Desktop (Windows)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Approve Electron install scripts
+        run: npx --yes npm approve-scripts electron || true
+      - name: Build & publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist -- --publish always
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ERP-Desktop
+          path: desktop/dist/*.exe
+          if-no-files-found: error
