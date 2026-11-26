@@ -1,6 +1,7 @@
 import { allPermissionCodes, ROLE_CODES } from '@erp/shared-types';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { CHART_OF_ACCOUNTS, ROLE_NAMES, ROLE_PERMISSIONS } from './seed-data';
@@ -127,7 +128,31 @@ async function seedFiscalPeriod(): Promise<void> {
   });
 }
 
+// A fingerprint of everything the seed depends on. When it matches the stored one the seed is skipped,
+// so a restart (for example waking a sleeping free-tier instance) does not repeat minutes of upserts.
+function seedFingerprint(): string {
+  const files = ['seed.ts', 'seed-data.ts'].map((f) => {
+    try {
+      return readFileSync(join(__dirname, f), 'utf8');
+    } catch {
+      return f; // compiled copies may not ship the sources; fall back to the file name
+    }
+  });
+  const env = [process.env.SEED_ADMIN_EMAIL, process.env.SEED_ADMIN_RESET, process.env.SEED_ADMIN_PASSWORD];
+  return createHash('sha256')
+    .update(JSON.stringify([files, env]))
+    .digest('hex');
+}
+
+const FINGERPRINT_KEY = 'system.seedFingerprint';
+
 async function main(): Promise<void> {
+  const fingerprint = seedFingerprint();
+  const stored = await prisma.setting.findUnique({ where: { key: FINGERPRINT_KEY } });
+  if (stored && stored.value === fingerprint && process.env.SEED_FORCE !== 'true') {
+    console.log('Seed already applied for this version, skipping');
+    return;
+  }
   await seedAccessControl();
   await seedAdmin();
   await seedCurrencyAndSettings();
@@ -135,6 +160,11 @@ async function main(): Promise<void> {
   await seedMainCashbox();
   await seedFiscalPeriod();
   await applySqlFiles();
+  await prisma.setting.upsert({
+    where: { key: FINGERPRINT_KEY },
+    update: { value: fingerprint },
+    create: { key: FINGERPRINT_KEY, value: fingerprint },
+  });
   console.log('Seed completed');
 }
 
