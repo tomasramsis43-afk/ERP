@@ -51,7 +51,8 @@ jobs:
         with: { node-version: 20 }
       - name: Point the app at the web console
         shell: bash
-        run: echo '{ "url": "${{ inputs.web_url }}" }' > desktop/config.json
+        run: |
+          printf '{"url":"%s"}' "${{ inputs.web_url }}" > desktop/config.json
       - name: Build the portable EXE
         working-directory: desktop
         shell: bash
