@@ -39,7 +39,9 @@ jobs:
         working-directory: apps/api
       - name: Apply schema and seed
         run: |
-          npx prisma db push --skip-generate
+          npx prisma migrate deploy
+          # The committed migrations must produce exactly the schema in schema.prisma.
+          npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
           npx ts-node prisma/seed.ts
         working-directory: apps/api
       - run: npm run typecheck
