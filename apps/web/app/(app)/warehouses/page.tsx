@@ -93,7 +93,7 @@ export default function WarehousesPage() {
             hideInEdit: true,
             col: 'col-4',
             options: [
-              { value: 'WAREHOUSE', label: tr('مخزن رئيسي', 'Main warehouse') },
+              { value: 'MAIN', label: tr('مخزن رئيسي', 'Main warehouse') },
               { value: 'VEHICLE', label: tr('عهدة سيارة', 'Vehicle custody') },
               { value: 'BRANCH', label: tr('فرع', 'Branch') },
             ],

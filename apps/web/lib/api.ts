@@ -12,9 +12,12 @@ export class ApiError extends Error {
 function messageOf(body: unknown, fallback: string): string {
   if (!body) return fallback;
   if (typeof body === 'string') return body;
-  const b = body as { message?: unknown; error?: string };
-  if (Array.isArray(b.message)) return b.message.join(' · ');
-  if (typeof b.message === 'string') return b.message;
+  // The API wraps errors as { statusCode, error: { message: string | string[] } }.
+  const b = body as { message?: unknown; error?: unknown };
+  const inner = b.error && typeof b.error === 'object' ? (b.error as { message?: unknown }) : null;
+  const message = b.message ?? inner?.message;
+  if (Array.isArray(message)) return message.join(' · ');
+  if (typeof message === 'string') return message;
   if (typeof b.error === 'string') return b.error;
   return fallback;
 }
