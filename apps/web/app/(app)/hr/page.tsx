@@ -59,7 +59,7 @@ function EmployeesTab() {
         { name: 'hireDate', label: tr('تاريخ التعيين', 'Hire date'), type: 'date', required: true, hideInEdit: true, col: 'col-4' },
         { name: 'baseSalary', label: tr('الراتب الأساسي', 'Base salary'), type: 'money', required: true, col: 'col-4' },
         { name: 'allowance', label: tr('البدلات', 'Allowance'), type: 'money', col: 'col-4' },
-        { name: 'userId', label: tr('المستخدم', 'User'), type: 'select', col: 'col-4', options: (users.data?.items ?? []).map((u) => ({ value: u.id, label: `${u.fullName} (${u.email})` })) },
+        { name: 'userId', label: tr('المستخدم', 'User'), type: 'select', hideInEdit: true, col: 'col-4', options: (users.data?.items ?? []).map((u) => ({ value: u.id, label: `${u.fullName} (${u.email})` })) },
         { name: 'isActive', label: tr('نشط', 'Active'), type: 'checkbox', hideInCreate: true, col: 'col-4' },
       ]}
       createLabel={tr('موظف جديد', 'New employee')}
