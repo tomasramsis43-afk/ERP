@@ -346,12 +346,15 @@ model Customer {
   updatedAt        DateTime @updatedAt
 
   routeId          String?
+  /// Order of the customer within the route's visit plan (1 = first stop).
+  routeSequence    Int?
 
   region         GeoArea?        @relation(fields: [regionId], references: [id])
   route          Route?          @relation(fields: [routeId], references: [id])
   representative Representative? @relation(fields: [representativeId], references: [id])
   prices CustomerPrice[]
   salesInvoices SalesInvoice[]
+  visits        RouteVisit[]
 
   @@index([nameAr])
   @@index([regionId])
@@ -844,6 +847,37 @@ model Route {
   customers       Customer[]
   representatives Representative[]
   vehicles        Vehicle[]
+  visits          RouteVisit[]
+}
+
+enum VisitOutcome {
+  SALE
+  COLLECTION
+  NO_ORDER
+  SHOP_CLOSED
+  NOT_REACHED
+}
+
+/// One visit of a representative to a customer on a given day (re-logging the same day corrects it).
+model RouteVisit {
+  id               String       @id @default(uuid())
+  routeId          String?
+  customerId       String
+  representativeId String
+  visitDate        DateTime     @db.Date
+  visitedAt        DateTime     @default(now())
+  outcome          VisitOutcome
+  note             String?
+  createdById      String?
+
+  route          Route?         @relation(fields: [routeId], references: [id])
+  customer       Customer       @relation(fields: [customerId], references: [id])
+  representative Representative @relation(fields: [representativeId], references: [id])
+
+  @@unique([representativeId, customerId, visitDate])
+  @@index([visitDate])
+  @@index([routeId, visitDate])
+  @@index([customerId])
 }
 
 model Vehicle {
@@ -885,6 +919,7 @@ model Representative {
   closings         RepClosing[]
   commissionRules  CommissionRule[]
   commissionEntries CommissionEntry[]
+  visits           RouteVisit[]
 }
 
 enum CommissionBasis {
