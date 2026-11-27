@@ -1,5 +1,5 @@
 -- Additive migration: cost layers for FIFO valuation.
--- Safe on existing databases: creates table + indexes only, no data changes.
+-- Safe on existing databases: creates table + indexes + FKs only. No data changes.
 
 CREATE TABLE IF NOT EXISTS "StockLayer" (
   "id"            TEXT        NOT NULL,
@@ -30,15 +30,3 @@ ALTER TABLE "StockLayer"
 ALTER TABLE "StockLayer"
   ADD CONSTRAINT "StockLayer_warehouse_fkey"
   FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- Back-fill: one layer per product/warehouse with positive stock at weighted-average cost.
--- Idempotent: only inserts when no layer exists yet for that product/warehouse.
-INSERT INTO "StockLayer" ("id", "productId", "warehouseId", "quantity", "remaining", "unitCost", "receivedAt", "source")
-SELECT gen_random_uuid()::text, sb."productId", sb."warehouseId", sb."quantity", sb."quantity", p."avgCost", NOW(), 'OPENING_BACKFILL'
-FROM "StockBalance" sb
-JOIN "Product" p ON p."id" = sb."productId"
-WHERE sb."quantity" > 0
-  AND NOT EXISTS (
-    SELECT 1 FROM "StockLayer" sl
-    WHERE sl."productId" = sb."productId" AND sl."warehouseId" = sb."warehouseId"
-  );
