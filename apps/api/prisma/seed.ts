@@ -147,13 +147,16 @@ function seedFingerprint(): string {
 const FINGERPRINT_KEY = 'system.seedFingerprint';
 
 async function main(): Promise<void> {
+  // Access control (permissions + roles) is always re-synced: new permission codes added
+  // to shared-types must reach existing deployments even when the rest of the seed is skipped.
+  await seedAccessControl();
+
   const fingerprint = seedFingerprint();
   const stored = await prisma.setting.findUnique({ where: { key: FINGERPRINT_KEY } });
   if (stored && stored.value === fingerprint && process.env.SEED_FORCE !== 'true') {
     console.log('Seed already applied for this version, skipping');
     return;
   }
-  await seedAccessControl();
   await seedAdmin();
   await seedCurrencyAndSettings();
   await seedChartOfAccounts();
