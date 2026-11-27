@@ -10,6 +10,7 @@ export class CreateUserDto {
 
   @IsString()
   @MinLength(10)
+  @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, { message: 'password must contain at least one letter and one digit' })
   password!: string;
 
   @IsArray()
