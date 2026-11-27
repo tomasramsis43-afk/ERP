@@ -22,11 +22,14 @@ async function bootstrap(): Promise<void> {
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  const doc = SwaggerModule.createDocument(
-    app,
-    new DocumentBuilder().setTitle('ERP API').setVersion('0.1.0').addBearerAuth().build(),
-  );
-  SwaggerModule.setup('api/docs', app, doc);
+  // Swagger is useful in development; disable it in production to avoid exposing the API surface.
+  if (env.nodeEnv !== 'production' || process.env.SWAGGER_ENABLED === 'true') {
+    const doc = SwaggerModule.createDocument(
+      app,
+      new DocumentBuilder().setTitle('ERP API').setVersion('0.1.0').addBearerAuth().build(),
+    );
+    SwaggerModule.setup('api/docs', app, doc);
+  }
 
   await app.listen(env.port);
   new Logger('Bootstrap').log(`API listening on :${env.port}`);
