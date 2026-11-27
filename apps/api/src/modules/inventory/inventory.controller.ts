@@ -68,6 +68,24 @@ export class InventoryController {
     });
   }
 
+  /** Batch/lot layers and expiry watch list. */
+  @Get('batches')
+  @RequirePermissions('inventory:view')
+  batches(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('warehouseId') warehouseId?: string,
+    @Query('productId') productId?: string,
+    @Query('expiringWithinDays') expiringWithinDays?: string,
+  ) {
+    const days = expiringWithinDays ? Number(expiringWithinDays) : undefined;
+    return this.inventory.batches(parsePage(page, pageSize, 50, 200), {
+      warehouseId,
+      productId,
+      expiringWithinDays: days && days > 0 ? days : undefined,
+    });
+  }
+
   @Get('movements')
   @RequirePermissions('inventory:view')
   movements(

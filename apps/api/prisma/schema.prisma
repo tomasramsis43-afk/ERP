@@ -286,6 +286,7 @@ model Product {
   units         ProductUnit[]
   customerPrices CustomerPrice[]
   balances      StockBalance[]
+  layers        StockLayer[]
   stockCountLines StockCountLine[]
   movements     StockMovement[]
   transferLines StockTransferLine[]
@@ -400,6 +401,7 @@ model Warehouse {
   isActive  Boolean       @default(true)
 
   balances      StockBalance[]
+  layers        StockLayer[]
   stockCounts   StockCount[]
   movements     StockMovement[]
   transfersFrom StockTransfer[] @relation("TransferFrom")
@@ -422,6 +424,29 @@ model StockBalance {
 
   @@id([warehouseId, productId])
   @@index([productId])
+}
+
+/// Cost layer for FIFO valuation. Each inbound movement creates a layer; outbound
+/// movements consume the oldest layers first (FIFO) or by FEFO when expiry applies.
+model StockLayer {
+  id          String    @id @default(uuid())
+  productId   String
+  warehouseId String
+  quantity    Decimal   @db.Decimal(18, 4)
+  remaining   Decimal   @db.Decimal(18, 4)
+  unitCost    Decimal   @db.Decimal(18, 4)
+  receivedAt  DateTime
+  source      String
+  sourceId    String?
+  batchNo     String?
+  expiryDate  DateTime? @db.Date
+  createdAt   DateTime  @default(now())
+
+  product   Product   @relation(fields: [productId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@index([productId, warehouseId, receivedAt])
+  @@index([source, sourceId])
 }
 
 enum MovementType {

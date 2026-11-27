@@ -32,6 +32,14 @@ export class PurchaseLineDto {
   /** Per entered unit. */
   @Matches(PRICE)
   unitPrice!: string;
+
+  /** Batch/lot number recorded on the inbound stock layer. */
+  @IsOptional() @IsString() @MaxLength(60)
+  batchNo?: string;
+
+  /** Expiry date (YYYY-MM-DD) recorded on the inbound stock layer. */
+  @IsOptional() @IsISO8601({ strict: true })
+  expiryDate?: string;
 }
 
 export class CreatePurchaseInvoiceDto {

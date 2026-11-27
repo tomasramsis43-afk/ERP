@@ -31,6 +31,14 @@ export class StockLineDto {
   /** Cost per entered unit; required for opening stock. */
   @IsOptional() @Matches(COST)
   unitCost?: string;
+
+  /** Batch/lot number recorded on the inbound cost layer. */
+  @IsOptional() @IsString() @MaxLength(60)
+  batchNo?: string;
+
+  /** Expiry date (YYYY-MM-DD) recorded on the inbound cost layer. */
+  @IsOptional() @IsISO8601({ strict: true })
+  expiryDate?: string;
 }
 
 class BaseStockOpDto {

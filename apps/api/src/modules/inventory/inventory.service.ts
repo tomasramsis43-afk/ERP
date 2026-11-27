@@ -15,6 +15,8 @@ interface ResolvedLine {
   productId: string;
   qty: Decimal; // base units
   unitCost?: Decimal; // per base unit
+  batchNo?: string;
+  expiryDate?: Date;
 }
 
 @Injectable()
@@ -92,6 +94,8 @@ export class InventoryService {
           quantity: l.qty,
           unitCost: cost,
           movementDate: date,
+          batchNo: out.layers?.[0]?.batchNo ?? l.batchNo,
+          expiryDate: out.layers?.[0]?.expiryDate ?? l.expiryDate,
           source: 'TRANSFER',
           sourceId: transfer.id,
           createdById: actorId,
@@ -162,6 +166,8 @@ export class InventoryService {
           quantity: l.qty,
           unitCost: l.unitCost,
           movementDate: date,
+          batchNo: l.batchNo,
+          expiryDate: l.expiryDate,
           source: 'OPENING_STOCK',
           idempotencyKey: key ? `${key}:${i}` : undefined,
           note: dto.note,
@@ -223,6 +229,8 @@ export class InventoryService {
           quantity: l.qty,
           unitCost: direction === 'IN' ? l.unitCost : undefined,
           movementDate: date,
+          batchNo: direction === 'IN' ? l.batchNo : undefined,
+          expiryDate: direction === 'IN' ? l.expiryDate : undefined,
           source: 'ADJUSTMENT',
           idempotencyKey: key ? `${key}:${i}` : undefined,
           note: dto.reason,
@@ -304,6 +312,36 @@ export class InventoryService {
     return { items, total, page: p.page, pageSize: p.pageSize };
   }
 
+  /** Live batch/lot layers, optionally filtered to those expiring within N days. */
+  async batches(p: PageParams, f: { warehouseId?: string; productId?: string; expiringWithinDays?: number }) {
+    const where: Prisma.StockLayerWhereInput = {
+      remaining: { gt: 0 },
+      ...(f.warehouseId ? { warehouseId: f.warehouseId } : {}),
+      ...(f.productId ? { productId: f.productId } : {}),
+    };
+    if (f.expiringWithinDays && f.expiringWithinDays > 0) {
+      const from = new Date();
+      from.setHours(0, 0, 0, 0);
+      const to = new Date(from);
+      to.setDate(to.getDate() + f.expiringWithinDays);
+      where.expiryDate = { gte: from, lte: to };
+    }
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.stockLayer.findMany({
+        where,
+        include: {
+          product: { select: { code: true, nameAr: true, nameEn: true } },
+          warehouse: { select: { code: true, nameAr: true, nameEn: true } },
+        },
+        orderBy: [{ expiryDate: 'asc' }, { receivedAt: 'asc' }],
+        skip: p.skip,
+        take: p.pageSize,
+      }),
+      this.prisma.stockLayer.count({ where }),
+    ]);
+    return { items, total, page: p.page, pageSize: p.pageSize };
+  }
+
   async movements(p: PageParams, f: { warehouseId?: string; productId?: string; from?: string; to?: string }) {
     const where: Prisma.StockMovementWhereInput = {
       ...(f.warehouseId ? { warehouseId: f.warehouseId } : {}),
@@ -339,7 +377,13 @@ export class InventoryService {
       } else if (requireCost) {
         throw new BadRequestException('unitCost is required for opening stock');
       }
-      resolved.push({ productId: l.productId, qty, unitCost });
+      resolved.push({
+        productId: l.productId,
+        qty,
+        unitCost,
+        batchNo: l.batchNo,
+        expiryDate: l.expiryDate ? toDate(l.expiryDate) : undefined,
+      });
     }
     return resolved;
   }

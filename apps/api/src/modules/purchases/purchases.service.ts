@@ -21,6 +21,8 @@ interface PricedLine {
   baseQty: Decimal;
   unitPrice: Decimal;
   lineNet: Decimal;
+  batchNo?: string;
+  expiryDate?: Date;
 }
 
 const INCLUDE = { lines: true, supplier: { select: { code: true, nameAr: true } } } satisfies Prisma.PurchaseInvoiceInclude;
@@ -87,7 +89,16 @@ export class PurchasesService {
         const enteredQty = dec(l.quantity);
         const baseQty = await this.conversion.toBaseQty(l.productId, l.unitId, l.quantity, tx);
         const unitPrice = dec(l.unitPrice);
-        priced.push({ productId: l.productId, unitId: l.unitId, enteredQty, baseQty, unitPrice, lineNet: roundMoney(enteredQty.times(unitPrice)) });
+        priced.push({
+          productId: l.productId,
+          unitId: l.unitId,
+          enteredQty,
+          baseQty,
+          unitPrice,
+          lineNet: roundMoney(enteredQty.times(unitPrice)),
+          batchNo: l.batchNo,
+          expiryDate: l.expiryDate ? toDate(l.expiryDate) : undefined,
+        });
       }
       if (dto.purchaseOrderId) await this.checkAgainstOrder(tx, kind, dto, supplier.id, warehouse.id, priced);
       const subtotal = priced.reduce((a, l) => a.plus(l.lineNet), new Decimal(0));
@@ -131,6 +142,8 @@ export class PurchasesService {
             quantity: l.baseQty,
             unitCost,
             movementDate: date,
+            batchNo: l.batchNo,
+            expiryDate: l.expiryDate,
             source: 'PURCHASE_INVOICE',
             sourceId: invoice.id,
             idempotencyKey: `pinv:${invoice.id}:${i}`,
