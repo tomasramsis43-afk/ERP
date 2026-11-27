@@ -25,12 +25,18 @@ export class StatementsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Net movement per account (debit − credit) inside a date window, with opening balances optionally added. */
-  private async nets(from: Date | undefined, to: Date, withOpening: boolean) {
+  private async nets(from: Date | undefined, to: Date, withOpening: boolean, excludeClosing = false) {
     const [accounts, sums] = await Promise.all([
       this.prisma.account.findMany({ where: { isPostable: true }, orderBy: { code: 'asc' } }),
       this.prisma.journalLine.groupBy({
         by: ['accountId'],
-        where: { entry: { status: 'POSTED', entryDate: { ...(from ? { gte: from } : {}), lte: to } } },
+        where: {
+          entry: {
+            status: 'POSTED',
+            entryDate: { ...(from ? { gte: from } : {}), lte: to },
+            ...(excludeClosing ? { source: { not: 'YEAR_END_CLOSE' } } : {}),
+          },
+        },
         _sum: { debit: true, credit: true },
       }),
     ]);
@@ -57,7 +63,7 @@ export class StatementsService {
     const from = toDate(fromStr);
     const to = toDate(toStr);
     assertRange(from, to);
-    const items = await this.nets(from, to, false);
+    const items = await this.nets(from, to, false, true); // year-end closing entries are not trading results
     const revenue = this.rows(items.filter((i) => i.account.type === 'REVENUE'), -1); // credit-natural; returns net off
     const expenses = items.filter((i) => i.account.type === 'EXPENSE');
     const cogs = this.rows(expenses.filter((i) => i.account.code.startsWith('51')), 1);

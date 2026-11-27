@@ -7,10 +7,12 @@ import { JournalPostingService } from './journal/journal-posting.service';
 import { JournalService } from './journal/journal.service';
 import { LedgerReportsController } from './reports/ledger-reports.controller';
 import { LedgerReportsService } from './reports/ledger-reports.service';
+import { YearEndController } from './year-end/year-end.controller';
+import { YearEndService } from './year-end/year-end.service';
 
 @Module({
-  controllers: [AccountsController, JournalController, LedgerReportsController],
-  providers: [AccountsService, JournalService, JournalPostingService, LedgerReportsService, SystemAccountsService],
+  controllers: [AccountsController, JournalController, LedgerReportsController, YearEndController],
+  providers: [AccountsService, JournalService, JournalPostingService, LedgerReportsService, SystemAccountsService, YearEndService],
   // Other domain modules (sales, purchases, treasury...) import this module and post via JournalPostingService.
   exports: [JournalPostingService, SystemAccountsService, LedgerReportsService],
 })
