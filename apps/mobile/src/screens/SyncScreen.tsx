@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { OutboxItem } from '../core/outbox';
-import { local, store } from '../db/database';
+import { OpDisplayState, displayState } from '../core/opState';
+import { discardRejected, local, store } from '../db/database';
 import { t } from '../i18n';
 import { SyncReport } from '../sync/syncEngine';
 import { runSync } from '../sync/syncRunner';
@@ -33,10 +34,17 @@ export function SyncScreen({ onSynced }: { onSynced: () => void }) {
     }
   }
 
-  async function discard(opId: string) {
-    await store.saveOutbox((await store.loadOutbox()).filter((i) => i.opId !== opId));
-    await refresh();
+  function discard(opId: string) {
+    Alert.alert(t('discard'), t('confirmDiscard'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('discard'), style: 'destructive', onPress: () => void discardRejected(opId).then(refresh) },
+    ]);
   }
+
+  const stateLabel: Record<OpDisplayState, string> = {
+    LOCAL_PENDING: t('stLocal'), SYNCING: t('stSyncing'), RETRY_PENDING: t('stRetry'), SERVER_REJECTED: t('stRejected'),
+  };
+  const typeLabel = (type: OutboxItem['type']) => t(`type${type}` as 'typeSALE' | 'typeRETURN' | 'typeCOLLECTION');
 
   const pending = items.filter((i) => i.status === 'PENDING');
   const rejected = items.filter((i) => i.status === 'REJECTED');
@@ -53,15 +61,15 @@ export function SyncScreen({ onSynced }: { onSynced: () => void }) {
       {pending.length === 0 ? <Text style={s.sub}>{t('nothingPending')}</Text> : null}
       {pending.map((i) => (
         <View key={i.opId} style={s.card}>
-          <Text style={s.text}>{i.type}</Text>
-          <Text style={s.sub}>{i.clientCreatedAt}</Text>
+          <Text style={s.text}>{typeLabel(i.type)}</Text>
+          <Text style={s.sub}>{stateLabel[displayState(i, busy)]} · {i.clientCreatedAt}</Text>
         </View>
       ))}
 
       <Text style={[s.text, { marginTop: 12 }]}>{t('rejected')}: {rejected.length}</Text>
       {rejected.map((i) => (
         <View key={i.opId} style={[s.card, { borderColor: c.danger }]}>
-          <Text style={s.text}>{i.type}</Text>
+          <Text style={s.text}>{typeLabel(i.type)} · {stateLabel[displayState(i, busy)]}</Text>
           <Text style={s.error}>{t('reasonRejected')}: {i.error}</Text>
           <Pressable style={s.ghost} onPress={() => discard(i.opId)}>
             <Text style={{ color: c.danger }}>{t('discard')}</Text>

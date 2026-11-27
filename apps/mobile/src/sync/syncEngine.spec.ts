@@ -1,4 +1,4 @@
-import { OutboxItem, ServerResult } from '../core/outbox';
+import { OutboxItem, ServerResult, applyResults } from '../core/outbox';
 import { Snapshot, SyncApi, SyncStore, synchronize } from './syncEngine';
 
 const item = (opId: string, at: string, over: Partial<OutboxItem> = {}): OutboxItem => ({
@@ -9,8 +9,12 @@ function fakeStore(initial: OutboxItem[]) {
   const state = { outbox: initial, snapshot: null as Snapshot | null };
   const store: SyncStore = {
     loadOutbox: async () => state.outbox,
-    saveOutbox: async (i) => { state.outbox = i; },
-    saveSnapshot: async (s) => { state.snapshot = s; },
+    applyResults: async (r) => { state.outbox = applyResults(state.outbox, r); },
+    saveSnapshot: async (s) => {
+      if (state.outbox.some((i) => i.status === 'PENDING')) return false;
+      state.snapshot = s;
+      return true;
+    },
   };
   return { state, store };
 }
@@ -94,5 +98,33 @@ describe('synchronize', () => {
     const r = await synchronize(api, store, 'dev');
     expect(r.error).toBe('dropped');
     expect(state.outbox).toHaveLength(50);
+  });
+
+  it('an operation saved while the sync is running is never lost and is sent next time', async () => {
+    const { store, state } = fakeStore([item('a', '1')]);
+    const api: SyncApi = {
+      push: async (_d, ops) => {
+        state.outbox = [...state.outbox, item('new', '2')]; // the rep saves a sale mid-sync
+        return applied(ops);
+      },
+      pull: async () => ({ serverTime: 'x' }),
+    };
+    const r = await synchronize(api, store, 'dev');
+    expect(state.outbox.map((i) => i.opId)).toEqual(['new']);
+    expect(r.pending).toBe(1);
+    expect(r.pulled).toBe(false); // the pull must not overwrite local stock that still includes the new sale
+    expect(state.snapshot).toBeNull();
+  });
+
+  it('does not store the snapshot if a sale appears between the pending check and the write', async () => {
+    const { store, state } = fakeStore([item('a', '1')]);
+    const api: SyncApi = {
+      push: async (_d, ops) => applied(ops),
+      pull: async () => { state.outbox = [item('late', '3')]; return { serverTime: 'x' }; },
+    };
+    const r = await synchronize(api, store, 'dev');
+    expect(r.pulled).toBe(false);
+    expect(r.pending).toBe(1);
+    expect(state.snapshot).toBeNull();
   });
 });

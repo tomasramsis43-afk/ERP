@@ -3,8 +3,9 @@ import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
 import { ensureDeviceId } from '../core/deviceId';
 import { Migration, migrate } from '../core/migrations';
+import { createSerialQueue } from '../core/serial';
 import { CustomerPrice, Product } from '../core/cart';
-import { OutboxItem } from '../core/outbox';
+import { OutboxItem, ServerResult } from '../core/outbox';
 import { Receipt, pruneReceipts } from '../core/receipts';
 import { Snapshot, SyncStore } from '../sync/syncEngine';
 
@@ -52,6 +53,12 @@ const MIGRATIONS: Migration[] = [
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
+/**
+ * Every write goes through this queue. expo-sqlite's withTransactionAsync does not isolate statements that other code
+ * runs on the same connection in the meantime, so two writers could otherwise land in each other's transaction.
+ */
+const write = createSerialQueue();
+
 export function db(): Promise<SQLite.SQLiteDatabase> {
   dbPromise ??= (async () => {
     const d = await SQLite.openDatabaseAsync('erp-field.db');
@@ -95,28 +102,44 @@ export const store: SyncStore = {
     const d = await db();
     return (await d.getAllAsync<Record<string, unknown>>('SELECT * FROM outbox ORDER BY clientCreatedAt')).map(rowToItem);
   },
-  /** Replaces the queue atomically: either the whole new state is stored or none of it. */
-  async saveOutbox(items) {
-    const d = await db();
-    await d.withTransactionAsync(async () => {
-      await d.runAsync('DELETE FROM outbox');
-      for (const i of items) {
-        await d.runAsync(
-          'INSERT INTO outbox (opId, type, payload, clientCreatedAt, status, error, attempts) VALUES (?,?,?,?,?,?,?)',
-          [i.opId, i.type, JSON.stringify(i.payload), i.clientCreatedAt, i.status, i.error, i.attempts],
-        );
-      }
+  /** Updates only the answered operations; rows added meanwhile (a sale saved during the sync) are untouched. */
+  applyResults(results: ServerResult[]) {
+    return write(async () => {
+      const d = await db();
+      await d.withTransactionAsync(async () => {
+        for (const r of results) {
+          if (r.status === 'APPLIED' || r.status === 'DUPLICATE') await d.runAsync('DELETE FROM outbox WHERE opId = ?', [r.opId]);
+          else if (r.status === 'REJECTED') await d.runAsync("UPDATE outbox SET status = 'REJECTED', error = ?, attempts = attempts + 1 WHERE opId = ?", [r.error, r.opId]);
+          else await d.runAsync('UPDATE outbox SET attempts = attempts + 1 WHERE opId = ?', [r.opId]);
+        }
+      });
     });
   },
-  async saveSnapshot(s: Snapshot) {
-    const d = await db();
-    await d.withTransactionAsync(async () => {
-      for (const key of ['representative', 'customers', 'customerPrices', 'products', 'vanStock', 'serverTime']) {
-        await d.runAsync('INSERT OR REPLACE INTO snapshot (key, value) VALUES (?, ?)', [key, JSON.stringify(s[key] ?? null)]);
-      }
+  /** Stored only when nothing is waiting to be sent; the check and the write share one transaction. */
+  saveSnapshot(s: Snapshot) {
+    return write(async () => {
+      const d = await db();
+      let stored = false;
+      await d.withTransactionAsync(async () => {
+        const waiting = await d.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM outbox WHERE status = 'PENDING'");
+        if ((waiting?.n ?? 0) > 0) return;
+        for (const key of ['representative', 'customers', 'customerPrices', 'products', 'vanStock', 'serverTime']) {
+          await d.runAsync('INSERT OR REPLACE INTO snapshot (key, value) VALUES (?, ?)', [key, JSON.stringify(s[key] ?? null)]);
+        }
+        stored = true;
+      });
+      return stored;
     });
   },
 };
+
+/** Removes one operation the server rejected, after the user chose to discard it. Pending operations are never removed. */
+export function discardRejected(opId: string): Promise<void> {
+  return write(async () => {
+    const d = await db();
+    await d.runAsync("DELETE FROM outbox WHERE opId = ? AND status = 'REJECTED'", [opId]);
+  });
+}
 
 /** This installation's identity (random UUID, created once, kept across restarts). */
 export const getDeviceId = (): Promise<string> =>
@@ -127,28 +150,32 @@ export const getDeviceId = (): Promise<string> =>
  * van stock. If any part fails the whole transaction rolls back, so the phone never holds an operation without its
  * receipt or a stock change without its operation. The same opId is stored once.
  */
-export async function saveOperation(item: OutboxItem, receipt: Receipt, vanStock?: Map<string, string>): Promise<void> {
-  const d = await db();
-  await d.withTransactionAsync(async () => {
-    await d.runAsync(
-      'INSERT OR IGNORE INTO outbox (opId, type, payload, clientCreatedAt, status, error, attempts) VALUES (?,?,?,?,?,?,?)',
-      [item.opId, item.type, JSON.stringify(item.payload), item.clientCreatedAt, item.status, item.error, item.attempts],
-    );
-    await d.runAsync('INSERT OR IGNORE INTO receipts (opId, date, createdAt, body) VALUES (?,?,?,?)', [receipt.opId, receipt.date, receipt.createdAt, JSON.stringify(receipt)]);
-    if (vanStock) {
-      const rows = [...vanStock.entries()].map(([productId, quantity]) => ({ productId, quantity }));
-      await d.runAsync('INSERT OR REPLACE INTO snapshot (key, value) VALUES (?, ?)', ['vanStock', JSON.stringify(rows)]);
-    }
+export function saveOperation(item: OutboxItem, receipt: Receipt, vanStock?: Map<string, string>): Promise<void> {
+  return write(async () => {
+    const d = await db();
+    await d.withTransactionAsync(async () => {
+      await d.runAsync(
+        'INSERT OR IGNORE INTO outbox (opId, type, payload, clientCreatedAt, status, error, attempts) VALUES (?,?,?,?,?,?,?)',
+        [item.opId, item.type, JSON.stringify(item.payload), item.clientCreatedAt, item.status, item.error, item.attempts],
+      );
+      await d.runAsync('INSERT OR IGNORE INTO receipts (opId, date, createdAt, body) VALUES (?,?,?,?)', [receipt.opId, receipt.date, receipt.createdAt, JSON.stringify(receipt)]);
+      if (vanStock) {
+        const rows = [...vanStock.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+        await d.runAsync('INSERT OR REPLACE INTO snapshot (key, value) VALUES (?, ?)', ['vanStock', JSON.stringify(rows)]);
+      }
+    });
   });
 }
 
 /** Adds one operation; the same transaction-safe INSERT means an operation is stored exactly once. */
-export async function enqueue(item: OutboxItem): Promise<void> {
-  const d = await db();
-  await d.runAsync(
-    'INSERT OR IGNORE INTO outbox (opId, type, payload, clientCreatedAt, status, error, attempts) VALUES (?,?,?,?,?,?,?)',
-    [item.opId, item.type, JSON.stringify(item.payload), item.clientCreatedAt, item.status, item.error, item.attempts],
-  );
+export function enqueue(item: OutboxItem): Promise<void> {
+  return write(async () => {
+    const d = await db();
+    await d.runAsync(
+      'INSERT OR IGNORE INTO outbox (opId, type, payload, clientCreatedAt, status, error, attempts) VALUES (?,?,?,?,?,?,?)',
+      [item.opId, item.type, JSON.stringify(item.payload), item.clientCreatedAt, item.status, item.error, item.attempts],
+    );
+  });
 }
 
 async function read<T>(key: string, fallback: T): Promise<T> {
@@ -167,17 +194,21 @@ export const local = {
     const rows = await read<{ productId: string; quantity: string }[]>('vanStock', []);
     return new Map(rows.map((r) => [r.productId, r.quantity]));
   },
-  async setVanStock(stock: Map<string, string>): Promise<void> {
-    const d = await db();
-    const rows = [...stock.entries()].map(([productId, quantity]) => ({ productId, quantity }));
-    await d.runAsync('INSERT OR REPLACE INTO snapshot (key, value) VALUES (?, ?)', ['vanStock', JSON.stringify(rows)]);
+  setVanStock(stock: Map<string, string>): Promise<void> {
+    return write(async () => {
+      const d = await db();
+      const rows = [...stock.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+      await d.runAsync('INSERT OR REPLACE INTO snapshot (key, value) VALUES (?, ?)', ['vanStock', JSON.stringify(rows)]);
+    });
   },
 };
 
 /** Keeps a permanent local record of an operation (receipt + day summary). Same opId is stored once. */
-export async function addReceipt(r: Receipt): Promise<void> {
-  const d = await db();
-  await d.runAsync('INSERT OR IGNORE INTO receipts (opId, date, createdAt, body) VALUES (?,?,?,?)', [r.opId, r.date, r.createdAt, JSON.stringify(r)]);
+export function addReceipt(r: Receipt): Promise<void> {
+  return write(async () => {
+    const d = await db();
+    await d.runAsync('INSERT OR IGNORE INTO receipts (opId, date, createdAt, body) VALUES (?,?,?,?)', [r.opId, r.date, r.createdAt, JSON.stringify(r)]);
+  });
 }
 
 export async function receiptsForDate(date: string): Promise<Receipt[]> {
@@ -186,9 +217,13 @@ export async function receiptsForDate(date: string): Promise<Receipt[]> {
   return rows.map((x) => JSON.parse(x.body) as Receipt);
 }
 
-export async function pruneOldReceipts(today: string, keepDays = 30): Promise<void> {
-  const d = await db();
-  const all = await d.getAllAsync<{ opId: string; date: string }>('SELECT opId, date FROM receipts');
-  const keep = new Set(pruneReceipts(all.map((x) => ({ opId: x.opId, date: x.date }) as Receipt), today, keepDays).map((x) => x.opId));
-  for (const row of all) if (!keep.has(row.opId)) await d.runAsync('DELETE FROM receipts WHERE opId = ?', [row.opId]);
+export function pruneOldReceipts(today: string, keepDays = 30): Promise<void> {
+  return write(async () => {
+    const d = await db();
+    const all = await d.getAllAsync<{ opId: string; date: string }>('SELECT opId, date FROM receipts');
+    const keep = new Set(pruneReceipts(all.map((x) => ({ opId: x.opId, date: x.date }) as Receipt), today, keepDays).map((x) => x.opId));
+    await d.withTransactionAsync(async () => {
+      for (const row of all) if (!keep.has(row.opId)) await d.runAsync('DELETE FROM receipts WHERE opId = ?', [row.opId]);
+    });
+  });
 }
