@@ -1,8 +1,9 @@
 import * as Crypto from 'expo-crypto';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { OutboxItem } from '../core/outbox';
 import { Receipt } from '../core/receipts';
-import { Customer, addReceipt, enqueue, local } from '../db/database';
+import { Customer, local, saveOperation } from '../db/database';
 import { pick, t } from '../i18n';
 import { useTheme } from './theme';
 
@@ -13,17 +14,19 @@ export function CollectionScreen({ onSaved }: { onSaved: () => void }) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customer, setCustomer] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
+  const saving = useRef(false);
 
   useEffect(() => {
     void local.customers().then(setCustomers);
   }, []);
 
   async function save() {
+    if (saving.current) return;
     if (!customer) return Alert.alert(t('selectCustomer'));
     if (!MONEY.test(amount) || Number(amount) <= 0) return Alert.alert(t('amount'));
     const now = new Date();
     const opId = Crypto.randomUUID();
-    await enqueue({
+    const item: OutboxItem = {
       opId,
       type: 'COLLECTION',
       clientCreatedAt: now.toISOString(),
@@ -31,7 +34,7 @@ export function CollectionScreen({ onSaved }: { onSaved: () => void }) {
       error: null,
       attempts: 0,
       payload: { customerId: customer, amount, date: now.toISOString().slice(0, 10) },
-    });
+    };
     const who = customers.find((x) => x.id === customer);
     const receipt: Receipt = {
       opId,
@@ -43,10 +46,17 @@ export function CollectionScreen({ onSaved }: { onSaved: () => void }) {
       lines: [],
       total: Number(amount).toFixed(2),
     };
-    await addReceipt(receipt);
+    saving.current = true;
+    try {
+      await saveOperation(item, receipt);
+    } catch {
+      saving.current = false;
+      return Alert.alert(t('saveFailed'));
+    }
     Alert.alert(t('savedOffline'));
     setAmount('');
     setCustomer(null);
+    saving.current = false;
     onSaved();
   }
 

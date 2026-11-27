@@ -1,4 +1,7 @@
+import * as Crypto from 'expo-crypto';
+import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
+import { ensureDeviceId } from '../core/deviceId';
 import { CustomerPrice, Product } from '../core/cart';
 import { OutboxItem } from '../core/outbox';
 import { Receipt, pruneReceipts } from '../core/receipts';
@@ -83,6 +86,30 @@ export const store: SyncStore = {
     });
   },
 };
+
+/** This installation's identity (random UUID, created once, kept across restarts). */
+export const getDeviceId = (): Promise<string> =>
+  ensureDeviceId({ get: (k) => SecureStore.getItemAsync(k), set: (k, v) => SecureStore.setItemAsync(k, v) }, () => Crypto.randomUUID());
+
+/**
+ * Saves a financial operation as ONE atomic unit: the outbox entry, its receipt and (when stock moved) the local
+ * van stock. If any part fails the whole transaction rolls back, so the phone never holds an operation without its
+ * receipt or a stock change without its operation. The same opId is stored once.
+ */
+export async function saveOperation(item: OutboxItem, receipt: Receipt, vanStock?: Map<string, string>): Promise<void> {
+  const d = await db();
+  await d.withTransactionAsync(async () => {
+    await d.runAsync(
+      'INSERT OR IGNORE INTO outbox (opId, type, payload, clientCreatedAt, status, error, attempts) VALUES (?,?,?,?,?,?,?)',
+      [item.opId, item.type, JSON.stringify(item.payload), item.clientCreatedAt, item.status, item.error, item.attempts],
+    );
+    await d.runAsync('INSERT OR IGNORE INTO receipts (opId, date, createdAt, body) VALUES (?,?,?,?)', [receipt.opId, receipt.date, receipt.createdAt, JSON.stringify(receipt)]);
+    if (vanStock) {
+      const rows = [...vanStock.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+      await d.runAsync('INSERT OR REPLACE INTO snapshot (key, value) VALUES (?, ?)', ['vanStock', JSON.stringify(rows)]);
+    }
+  });
+}
 
 /** Adds one operation; the same transaction-safe INSERT means an operation is stored exactly once. */
 export async function enqueue(item: OutboxItem): Promise<void> {

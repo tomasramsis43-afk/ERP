@@ -1,10 +1,11 @@
 import * as Crypto from 'expo-crypto';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { CartLine, CustomerPrice, Product, applySale, cartTotal, lineTotal, stockShortages } from '../core/cart';
 import { format } from '../core/money';
+import { OutboxItem } from '../core/outbox';
 import { Receipt } from '../core/receipts';
-import { Customer, addReceipt, enqueue, local } from '../db/database';
+import { Customer, local, saveOperation } from '../db/database';
 import { pick, t } from '../i18n';
 import { useTheme } from './theme';
 
@@ -20,6 +21,7 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
   const [kind, setKind] = useState<'CASH' | 'CREDIT'>('CASH');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [picking, setPicking] = useState(false);
+  const saving = useRef(false); // blocks a second tap while the first save is still running
 
   useEffect(() => {
     void Promise.all([local.customers(), local.products(), local.prices(), local.vanStock()]).then(([cu, p, pr, st]) => {
@@ -39,7 +41,7 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
   }
 
   async function save() {
-    if (cart.length === 0) return;
+    if (saving.current || cart.length === 0) return;
     if (kind === 'CREDIT' && !customer) return Alert.alert(t('selectCustomer'));
     if (cart.some((l) => !QTY.test(l.quantity) || Number(l.quantity) <= 0)) return Alert.alert(t('quantity'));
     if (stockShortages(byId, cart, stock).length) return Alert.alert(t('insufficientStock'));
@@ -47,7 +49,7 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
     const now = new Date();
     // The operation id is created once, here. Every retry of this sale reuses it, so the server can never create it twice.
     const opId = Crypto.randomUUID();
-    await enqueue({
+    const item: OutboxItem = {
       opId,
       type: 'SALE',
       clientCreatedAt: now.toISOString(),
@@ -60,7 +62,7 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
         ...(customer ? { customerId: customer } : {}),
         lines: cart.map((l) => ({ productId: l.productId, quantity: l.quantity })),
       },
-    });
+    };
     const who = customers.find((x) => x.id === customer);
     const receipt: Receipt = {
       opId,
@@ -75,10 +77,17 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
       }),
       total,
     };
-    await addReceipt(receipt);
-    await local.setVanStock(applySale(stock, byId, cart)); // the next offline sale sees what is really left
+    saving.current = true;
+    try {
+      // One atomic write; the van stock is updated so the next offline sale sees what is really left.
+      await saveOperation(item, receipt, applySale(stock, byId, cart));
+    } catch {
+      saving.current = false;
+      return Alert.alert(t('saveFailed'));
+    }
     Alert.alert(t('savedOffline'));
     setCart([]);
+    saving.current = false;
     onSaved();
   }
 
