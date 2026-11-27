@@ -45,7 +45,7 @@ export class ReportTablesService {
             num(L(lang, 'رصيد دائن', 'Closing Cr'), 'closingCredit'),
           ],
           rows: [
-            ...tb.rows.map((r) => ({ ...r, name: lang === 'ar' ? r.nameAr : r.nameEn })),
+            ...tb.rows.map((r) => ({ code: r.code, name: lang === 'ar' ? r.nameAr : r.nameEn, openingBalance: r.openingBalance, movementDebit: r.movementDebit, movementCredit: r.movementCredit, closingDebit: r.closingDebit, closingCredit: r.closingCredit })),
             { code: '', name: L(lang, 'الإجمالي', 'Total'), openingBalance: '', movementDebit: '', movementCredit: '', closingDebit: tb.totalDebit, closingCredit: tb.totalCredit },
           ],
           boldRows: [tb.rows.length],
