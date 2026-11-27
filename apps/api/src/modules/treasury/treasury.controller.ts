@@ -2,15 +2,18 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestj
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthUser, CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators';
 import { parsePage } from '../../common/utils/pagination';
+import { CashboxClosingService } from './cashbox-closing.service';
 import { ChequesService } from './cheques.service';
 import {
   BounceChequeDto,
   CancelVoucherDto,
+  CloseCashboxDto,
   CreateFinancialAccountDto,
   CreateVoucherDto,
   IncomingChequeDto,
   OutgoingChequeDto,
   ReconcileDto,
+  ReopenCashboxClosingDto,
   SettleChequeDto,
 } from './dto/treasury.dto';
 import { FinancialAccountsService } from './financial-accounts.service';
@@ -26,6 +29,7 @@ export class TreasuryController {
     private readonly vouchers: VouchersService,
     private readonly cheques: ChequesService,
     private readonly recon: ReconciliationService,
+    private readonly closings: CashboxClosingService,
   ) {}
 
   // ---- cash boxes and bank accounts ------------------------------------
@@ -142,5 +146,36 @@ export class TreasuryController {
   @RequirePermissions('banks:update')
   reconcile(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ReconcileDto, @CurrentUser() u: AuthUser) {
     return this.recon.reconcile(id, dto, u.id);
+  }
+
+  // ---- cash box day closing -------------------------------------------
+
+  @Get('treasury/cashbox-closings/preview')
+  @RequirePermissions('treasury:view')
+  previewClosing(@Query('financialAccountId', ParseUUIDPipe) financialAccountId: string, @Query('date') date: string) {
+    return this.closings.preview(financialAccountId, date);
+  }
+
+  @Get('treasury/cashbox-closings')
+  @RequirePermissions('treasury:view')
+  listClosings(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('financialAccountId') financialAccountId?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.closings.list(parsePage(page, pageSize), { financialAccountId, status });
+  }
+
+  @Post('treasury/cashbox-closings')
+  @RequirePermissions('treasury:approve')
+  closeDay(@Body() dto: CloseCashboxDto, @CurrentUser() u: AuthUser) {
+    return this.closings.close(dto, u.id);
+  }
+
+  @Post('treasury/cashbox-closings/:id/reopen')
+  @RequirePermissions('treasury:cancel')
+  reopenDay(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ReopenCashboxClosingDto, @CurrentUser() u: AuthUser) {
+    return this.closings.reopen(id, dto.reason, u.id);
   }
 }

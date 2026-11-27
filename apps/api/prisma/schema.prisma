@@ -656,6 +656,30 @@ model FinancialAccount {
   cheques         Cheque[]
   reconciliations BankReconciliation[]
   representative  Representative?
+  cashboxClosings CashboxClosing[]
+}
+
+/// End-of-day cash count of a cash box against the ledger balance. Differences are posted and need a reason.
+/// At most one POSTED closing per (financialAccountId, closingDate), enforced under the account row lock.
+model CashboxClosing {
+  id                 String    @id @default(uuid())
+  number             Int       @unique @default(autoincrement())
+  financialAccountId String
+  closingDate        DateTime  @db.Date
+  systemBalance      Decimal   @db.Decimal(18, 2)
+  countedAmount      Decimal   @db.Decimal(18, 2)
+  difference         Decimal   @db.Decimal(18, 2)
+  reason             String?
+  status             DocStatus @default(POSTED)
+  journalEntryId     String?
+  cancelReason       String?
+  cancelledAt        DateTime?
+  createdById        String?
+  createdAt          DateTime  @default(now())
+
+  financialAccount FinancialAccount @relation(fields: [financialAccountId], references: [id])
+
+  @@index([financialAccountId, closingDate])
 }
 
 enum VoucherType {
