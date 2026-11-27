@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useApp, useToast } from '@/components/Providers';
 import {
   Badge,
@@ -124,6 +125,7 @@ export function InvoicePage({ side }: { side: Side }) {
         <Button icon="plus" onClick={() => setCreating('SALE')}>
           {isSales ? tr('فاتورة بيع', 'Sales invoice') : tr('فاتورة شراء', 'Purchase invoice')}
         </Button>
+        <Link href={`/${side}/orders`} className="btn ghost">{isSales ? tr('عروض وأوامر البيع', 'Quotes & orders') : tr('أوامر الشراء', 'Purchase orders')}</Link>
         <Button variant="ghost" icon="transfer" onClick={() => setCreating('RETURN')}>
           {tr('مرتجع', 'Return')}
         </Button>
