@@ -14,6 +14,9 @@ const dict = {
     savedOffline: 'تم الحفظ. سيُرسل عند توفر الإنترنت', insufficientStock: 'الكمية غير كافية في السيارة',
     creditLimit: 'حد الائتمان', language: 'English', reasonRejected: 'سبب الرفض', discard: 'حذف', retry: 'إعادة',
     estimate: 'تقدير: الخادم يحسب الإجمالي النهائي', search: 'بحث', noData: 'لا توجد بيانات، قم بالمزامنة أولًا',
+    closeDay: 'اليومية', preview: 'معاينة اليوم', expectedCash: 'النقدية المتوقعة', cashSales: 'مبيعات نقدية', creditSales: 'مبيعات آجلة', collections: 'التحصيلات',
+    declaredCash: 'النقدية الفعلية', counted: 'المعدود', expected: 'المتوقع', difference: 'الفرق', differenceReason: 'سبب الفرق (إلزامي)', closeTheDay: 'إقفال اليوم',
+    syncFirst: 'يوجد عمليات غير مرسلة. أرسلها من تبويب المزامنة قبل الإقفال.', dayClosed: 'تم إقفال اليوم', needOnline: 'يتطلب الإقفال اتصالاً بالخادم', fillAll: 'أدخل النقدية وعدّ كل الأصناف',
   },
   en: {
     appName: 'Field Rep',
@@ -26,6 +29,9 @@ const dict = {
     savedOffline: 'Saved. It will be sent when you are online', insufficientStock: 'Not enough stock on the van',
     creditLimit: 'Credit limit', language: 'العربية', reasonRejected: 'Rejection reason', discard: 'Discard', retry: 'Retry',
     estimate: 'Estimate: the server computes the final total', search: 'Search', noData: 'No data yet, sync first',
+    closeDay: 'Close day', preview: 'Preview day', expectedCash: 'Expected cash', cashSales: 'Cash sales', creditSales: 'Credit sales', collections: 'Collections',
+    declaredCash: 'Actual cash', counted: 'Counted', expected: 'Expected', difference: 'Difference', differenceReason: 'Reason for the difference (required)', closeTheDay: 'Close the day',
+    syncFirst: 'Some operations are not sent yet. Send them from the Sync tab before closing.', dayClosed: 'Day closed', needOnline: 'Closing needs a connection to the server', fillAll: 'Enter the cash and count every product',
   },
 } as const;
 

@@ -4,13 +4,14 @@ import { Alert, Pressable, SafeAreaView, Text, View } from 'react-native';
 import { hasSession, logout } from './src/api/client';
 import { Lang, getLang, setLang, t } from './src/i18n';
 import { CollectionScreen } from './src/screens/CollectionScreen';
+import { CloseDayScreen } from './src/screens/CloseDayScreen';
 import { CustomersScreen } from './src/screens/CustomersScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { SaleScreen } from './src/screens/SaleScreen';
 import { SyncScreen } from './src/screens/SyncScreen';
 import { useTheme } from './src/screens/theme';
 
-type Tab = 'customers' | 'sale' | 'collection' | 'sync';
+type Tab = 'customers' | 'sale' | 'collection' | 'close' | 'sync';
 
 export default function App() {
   const { s, c } = useTheme();
@@ -44,6 +45,7 @@ export default function App() {
     ['customers', t('customers')],
     ['sale', t('newSale')],
     ['collection', t('collection')],
+    ['close', t('closeDay')],
     ['sync', t('outbox')],
   ];
   return (
@@ -57,6 +59,7 @@ export default function App() {
         {tab === 'customers' && <CustomersScreen version={version} onSell={(id) => { setSaleCustomer(id); setTab('sale'); }} />}
         {tab === 'sale' && <SaleScreen key={saleCustomer ?? 'none'} customerId={saleCustomer} onSaved={() => { bump(); setTab('sync'); }} />}
         {tab === 'collection' && <CollectionScreen onSaved={() => { bump(); setTab('sync'); }} />}
+        {tab === 'close' && <CloseDayScreen version={version} onClosed={bump} />}
         {tab === 'sync' && <SyncScreen onSynced={bump} />}
       </View>
       <View style={[s.row, { borderTopWidth: 1, borderColor: c.border }]}>
