@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
+import { Alert, Pressable, SafeAreaView, Text, View } from 'react-native';
 import { hasSession, logout, onSessionExpired } from './src/api/client';
 import { startAutoSync } from './src/sync/syncRunner';
 import { databaseIsHealthy } from './src/db/database';
@@ -24,6 +24,7 @@ export default function App() {
   const [signedIn, setSignedIn] = useState(false);
   const [tab, setTab] = useState<Tab>('customers');
   const [saleCustomer, setSaleCustomer] = useState<string | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [version, setVersion] = useState(0); // bumped after each sync/save so screens reload local data
   const [, force] = useState(0);
 
@@ -58,16 +59,37 @@ export default function App() {
   if (!ready) return null;
   if (!signedIn) return <LoginScreen onDone={() => setSignedIn(true)} />;
 
-  const tabs: [Tab, string][] = [
+  // Four everyday tabs plus "More": eight side-by-side tabs were too crowded for one-handed use.
+  const mainTabs: [Tab, string][] = [
     ['customers', t('customers')],
     ['sale', t('newSale')],
-    ['return', t('returns')],
     ['collection', t('collection')],
+    ['sync', t('outbox')],
+  ];
+  const moreTabs: [Tab, string][] = [
+    ['return', t('returns')],
     ['van', t('vanStock')],
     ['summary', t('daySummary')],
     ['close', t('closeDay')],
-    ['sync', t('outbox')],
   ];
+  const inMore = moreTabs.some(([k]) => k === tab);
+  const go = (key: Tab) => {
+    if (key === 'sale') setSaleCustomer(null);
+    setTab(key);
+    setMoreOpen(false);
+  };
+  const navItem = (key: string, label: string, active: boolean, onPress: () => void) => (
+    <Pressable
+      key={key}
+      style={{ flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}
+      onPress={onPress}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={label}
+    >
+      <Text numberOfLines={1} style={{ color: active ? c.primary : c.sub, fontWeight: active ? '700' : '400' }}>{label}</Text>
+    </Pressable>
+  );
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
       <StatusBar style="auto" />
@@ -85,13 +107,19 @@ export default function App() {
         {tab === 'close' && <CloseDayScreen version={version} onClosed={bump} />}
         {tab === 'sync' && <SyncScreen onSynced={bump} />}
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, borderTopWidth: 1, borderColor: c.border }}>
-        {tabs.map(([key, label]) => (
-          <Pressable key={key} style={{ paddingHorizontal: 16, paddingVertical: 14, alignItems: 'center' }} onPress={() => { if (key === 'sale') setSaleCustomer(null); setTab(key); }}>
-            <Text style={{ color: tab === key ? c.primary : c.sub, fontWeight: tab === key ? '700' : '400' }}>{label}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      {moreOpen ? (
+        <View style={{ borderTopWidth: 1, borderColor: c.border, backgroundColor: c.bg }}>
+          {moreTabs.map(([key, label]) => (
+            <Pressable key={key} style={{ minHeight: 52, justifyContent: 'center', paddingHorizontal: 20 }} onPress={() => go(key)} accessibilityRole="button">
+              <Text style={{ color: tab === key ? c.primary : c.text, fontWeight: tab === key ? '700' : '400' }}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      <View style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: c.border }}>
+        {mainTabs.map(([key, label]) => navItem(key, label, tab === key && !moreOpen, () => go(key)))}
+        {navItem('more', t('more'), inMore || moreOpen, () => setMoreOpen((o) => !o))}
+      </View>
     </SafeAreaView>
   );
 }
