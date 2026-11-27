@@ -1,7 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
-import { hasSession, logout } from './src/api/client';
+import { hasSession, logout, onSessionExpired } from './src/api/client';
 import { Lang, getLang, setLang, t } from './src/i18n';
 import { CollectionScreen } from './src/screens/CollectionScreen';
 import { CloseDayScreen } from './src/screens/CloseDayScreen';
@@ -31,6 +31,11 @@ export default function App() {
       setReady(true);
     });
   }, []);
+
+  useEffect(() => onSessionExpired(() => {
+    setSignedIn(false);
+    Alert.alert(t('sessionExpired'));
+  }), []);
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
 
