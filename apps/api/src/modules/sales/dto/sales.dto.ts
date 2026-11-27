@@ -82,6 +82,10 @@ export class CreateSalesInvoiceDto {
   @IsOptional() @IsString() @MaxLength(500)
   note?: string;
 
+  /** Required to sell on credit beyond the customer's limit; only users with sales:override_credit_limit may use it. */
+  @IsOptional() @IsString() @MinLength(3) @MaxLength(300)
+  creditOverrideReason?: string;
+
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(300)
   @ValidateNested({ each: true }) @Type(() => SalesLineDto)
   lines!: SalesLineDto[];

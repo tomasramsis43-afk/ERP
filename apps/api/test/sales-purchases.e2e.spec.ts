@@ -145,8 +145,13 @@ d('sales and purchases full cycle (end to end, requires seeded PostgreSQL)', () 
   it('enforces the credit limit unless the user may override it', async () => {
     await http.post('/sales/invoices').set(bearer(manager)).send(saleBody('50')).expect(400); // 200 + 1000 > 1000
     await http.post('/sales/invoices').set(bearer(manager)).send(saleBody('10')).expect(201); // 200 + 200 <= 1000
-    const over = await http.post('/sales/invoices').set(bearer(admin)).send(saleBody('50')).expect(201); // admin overrides
+    // the permission alone is not enough: the override must carry a recorded reason
+    await http.post('/sales/invoices').set(bearer(admin)).send(saleBody('50')).expect(400);
+    await http.post('/sales/invoices').set(bearer(manager)).send(saleBody('50', { creditOverrideReason: 'Approved by owner' })).expect(400); // no permission
+    const over = await http.post('/sales/invoices').set(bearer(admin)).send(saleBody('50', { creditOverrideReason: 'Approved by owner' })).expect(201);
     expect(over.body.total).toBe('1000');
+    const audit = await http.get('/audit-logs?entity=SalesInvoice&pageSize=50').set(bearer(admin)).expect(200);
+    expect(JSON.stringify(audit.body)).toContain('CREDIT_LIMIT_OVERRIDE');
     await http.post(`/sales/invoices/${over.body.id}/cancel`).set(bearer(admin)).send({ reason: 'cleanup' }).expect(201);
   });
 

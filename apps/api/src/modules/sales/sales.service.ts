@@ -96,12 +96,17 @@ export class SalesService {
       const total = net.plus(vatTotal);
       if (total.lte(0)) throw new BadRequestException('Document total must be greater than zero');
 
+      let creditOverride: { balance: Decimal; limit: string } | null = null;
       if (kind === 'SALE' && dto.paymentKind === 'CREDIT' && customer) {
         const balance = await this.parties.balance('CUSTOMER', customer.id, tx);
-        if (balance.plus(total).gt(customer.creditLimit.toString()) && !user.permissions.includes('sales:override_credit_limit')) {
-          throw new BadRequestException(
-            `Credit limit exceeded: balance ${balance.toFixed(2)} + ${total.toFixed(2)} > limit ${customer.creditLimit.toString()}`,
-          );
+        const limit = customer.creditLimit.toString();
+        if (balance.plus(total).gt(limit)) {
+          const msg = `Credit limit exceeded: balance ${balance.toFixed(2)} + ${total.toFixed(2)} > limit ${limit}`;
+          if (!user.permissions.includes('sales:override_credit_limit')) throw new BadRequestException(msg);
+          if (!dto.creditOverrideReason?.trim()) {
+            throw new BadRequestException(`${msg}. Overriding the limit needs a recorded reason (creditOverrideReason)`);
+          }
+          creditOverride = { balance, limit };
         }
       }
 
@@ -145,6 +150,19 @@ export class SalesService {
         });
       }
       await tx.salesInvoiceLine.createMany({ data: lineRows });
+      if (creditOverride) {
+        await tx.creditOverride.create({
+          data: {
+            invoiceId: invoice.id,
+            customerId: customer!.id,
+            balanceBefore: roundMoney(creditOverride.balance).toFixed(2),
+            invoiceTotal: roundMoney(total).toFixed(2),
+            creditLimit: creditOverride.limit,
+            reason: dto.creditOverrideReason!.trim(),
+            approvedById: user.id,
+          },
+        });
+      }
       if (dto.salesOrderId) await this.orders.refreshStatus(tx, dto.salesOrderId);
 
       const cost = roundMoney(costTotal);
@@ -171,6 +189,17 @@ export class SalesService {
         entityId: result.invoice.id,
         newData: { number: result.invoice.number, total: result.invoice.total.toString(), paymentKind: dto.paymentKind },
       });
+      const override = await this.prisma.creditOverride.findUnique({ where: { invoiceId: result.invoice.id } });
+      if (override) {
+        await this.audit.record({
+          userId: user.id,
+          action: 'CREDIT_LIMIT_OVERRIDE',
+          entity: 'SalesInvoice',
+          entityId: result.invoice.id,
+          newData: { balanceBefore: override.balanceBefore.toString(), invoiceTotal: override.invoiceTotal.toString(), creditLimit: override.creditLimit.toString() },
+          reason: override.reason,
+        });
+      }
     }
     return result.invoice;
   }

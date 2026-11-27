@@ -548,6 +548,7 @@ model SalesInvoice {
   customer  Customer?  @relation(fields: [customerId], references: [id])
   warehouse Warehouse  @relation(fields: [warehouseId], references: [id])
   salesOrder SalesOrder? @relation(fields: [salesOrderId], references: [id])
+  creditOverride CreditOverride?
   lines     SalesInvoiceLine[]
 
   @@index([salesOrderId])
@@ -631,6 +632,23 @@ model PurchaseInvoiceLine {
 // ---------------------------------------------------------------
 // Treasury, banks, cheques
 // ---------------------------------------------------------------
+
+/// Recorded approval when a credit sale exceeded the customer's limit (needs sales:override_credit_limit + a reason).
+model CreditOverride {
+  id             String   @id @default(uuid())
+  invoiceId      String   @unique
+  customerId     String
+  balanceBefore  Decimal  @db.Decimal(18, 2)
+  invoiceTotal   Decimal  @db.Decimal(18, 2)
+  creditLimit    Decimal  @db.Decimal(18, 2)
+  reason         String
+  approvedById   String
+  createdAt      DateTime @default(now())
+
+  invoice SalesInvoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([customerId, createdAt])
+}
 
 enum FinancialAccountKind {
   CASHBOX
