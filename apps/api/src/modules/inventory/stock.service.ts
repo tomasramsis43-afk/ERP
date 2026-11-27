@@ -18,6 +18,17 @@ export interface ApplyMovementInput {
   idempotencyKey?: string;
   note?: string;
   createdById?: string;
+  /** Batch/lot identifier carried on inbound transactions. */
+  batchNo?: string;
+  /** Expiry date for FEFO consumption. */
+  expiryDate?: Date;
+}
+
+export interface ConsumedLayer {
+  layerId: string;
+  quantity: Decimal;
+  batchNo: string | null;
+  expiryDate: Date | null;
 }
 
 /**
@@ -61,6 +72,7 @@ export class StockService {
     const avgCost = dec(rows[0].avgCost.toString());
 
     let unitCost: Decimal;
+    let consumed: ConsumedLayer[] = [];
     if (input.direction === 'IN') {
       unitCost = input.unitCost ? dec(input.unitCost) : avgCost;
       if (input.type !== 'TRANSFER_IN') await this.updateAverageCost(tx, input.productId, avgCost, qty, unitCost);
@@ -68,6 +80,20 @@ export class StockService {
         VALUES (${input.warehouseId}, ${input.productId}, ${qty.toFixed(4)}::numeric)
         ON CONFLICT ("warehouseId", "productId")
         DO UPDATE SET "quantity" = "StockBalance"."quantity" + EXCLUDED."quantity"`;
+      await tx.stockLayer.create({
+        data: {
+          productId: input.productId,
+          warehouseId: input.warehouseId,
+          quantity: qty.toFixed(4),
+          remaining: qty.toFixed(4),
+          unitCost: unitCost.toFixed(4),
+          receivedAt: input.movementDate,
+          source: input.source,
+          sourceId: input.sourceId,
+          batchNo: input.batchNo,
+          expiryDate: input.expiryDate,
+        },
+      });
     } else {
       unitCost = avgCost;
       const updated = await tx.$executeRaw`UPDATE "StockBalance"
@@ -77,6 +103,7 @@ export class StockService {
       if (updated === 0) {
         throw new BadRequestException(`Insufficient stock in warehouse ${warehouse.code}`);
       }
+      consumed = await this.consumeLayers(tx, input.warehouseId, input.productId, qty);
     }
 
     const movement = await tx.stockMovement.create({
@@ -94,7 +121,33 @@ export class StockService {
         createdById: input.createdById,
       },
     });
-    return { movement, created: true };
+    return { movement, created: true, layers: consumed };
+  }
+
+  /**
+   * Consumes cost layers FEFO (expiry first, then oldest receipt). Legacy stock that predates
+   * layers is still sellable: this is best-effort and never blocks an OUT movement.
+   */
+  private async consumeLayers(tx: Tx, warehouseId: string, productId: string, qty: Decimal): Promise<ConsumedLayer[]> {
+    const layers = await tx.stockLayer.findMany({
+      where: { warehouseId, productId, remaining: { gt: 0 } },
+      orderBy: [{ expiryDate: 'asc' }, { receivedAt: 'asc' }, { createdAt: 'asc' }],
+    });
+    let left = qty;
+    const out: ConsumedLayer[] = [];
+    for (const layer of layers) {
+      if (left.lte(0)) break;
+      const available = dec(layer.remaining.toString());
+      const take = available.gte(left) ? left : available;
+      const updated = await tx.stockLayer.updateMany({
+        where: { id: layer.id, remaining: { gte: take.toFixed(4) } },
+        data: { remaining: { decrement: take.toFixed(4) } },
+      });
+      if (updated.count === 0) continue;
+      out.push({ layerId: layer.id, quantity: take, batchNo: layer.batchNo, expiryDate: layer.expiryDate });
+      left = left.minus(take);
+    }
+    return out;
   }
 
   /**
