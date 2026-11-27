@@ -21,9 +21,11 @@ jobs:
         run: npm test --workspace @erp/mobile
 
   apk:
-    # The APK is built on Expo's servers; run it manually once EXPO_TOKEN is set (see docs).
+    # The APK is built on Expo's servers and published to the v0.1.0-mobile-apk release.
     if: ${{ github.event_name == 'workflow_dispatch' }}
     needs: verify
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -46,4 +48,19 @@ jobs:
       - run: npm ci
       - name: Build APK
         working-directory: apps/mobile
-        run: eas build --platform android --profile preview --non-interactive --no-wait
+        run: eas build --platform android --profile preview --non-interactive --wait --json > "$RUNNER_TEMP/eas-build.json"
+      - name: Publish APK to release
+        id: publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          APK_URL=$(node -e "const fs=require('fs'); const raw=fs.readFileSync(process.env.RUNNER_TEMP + '/eas-build.json','utf8'); const parsed=JSON.parse(raw); const build=Array.isArray(parsed)?parsed[0]:parsed; const url=build?.artifacts?.buildUrl; if(!url) throw new Error('EAS build returned no APK artifact URL'); console.log(url)")
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/ERP-Mobile.apk" "$APK_URL"
+          test -s "$RUNNER_TEMP/ERP-Mobile.apk"
+          if gh release view v0.1.0-mobile-apk >/dev/null 2>&1; then
+            gh release upload v0.1.0-mobile-apk "$RUNNER_TEMP/ERP-Mobile.apk" --clobber
+          else
+            gh release create v0.1.0-mobile-apk "$RUNNER_TEMP/ERP-Mobile.apk" --title "ERP Mobile APK" --notes "Installable Android APK built from main"
+          fi
+          echo "apk_url=$APK_URL" >> "$GITHUB_OUTPUT"
