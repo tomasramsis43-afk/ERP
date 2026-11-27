@@ -67,7 +67,7 @@ export class SalesService {
   }
 
   private async createOnce(kind: SalesDocKind, dto: CreateSalesReturnDto, user: AuthUser) {
-    this.assertPermissions(dto, user);
+    await this.assertPermissions(dto, user);
     const date = toDate(dto.invoiceDate);
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -310,15 +310,15 @@ export class SalesService {
 
   // ---- internals ------------------------------------------------------
 
-  private assertPermissions(dto: CreateSalesInvoiceDto, user: AuthUser): void {
+  private async assertPermissions(dto: CreateSalesInvoiceDto, user: AuthUser): Promise<void> {
     if (dto.paymentKind === 'CREDIT' && !user.permissions.includes('sales:credit_sale')) {
       throw new ForbiddenException('Credit sales require sales:credit_sale');
     }
     if (dto.lines.some((l) => l.discount && Number(l.discount) > 0) && !user.permissions.includes('sales:discount')) {
       throw new ForbiddenException('Discounts require sales:discount');
     }
-    // Large discounts (above the configured threshold of the line gross) need approval.
-    const threshold = 0.05;
+    // Large discounts (above the configured fraction of the line gross) need approval.
+    const threshold = await this.discountApprovalThreshold();
     const needsApproval = dto.lines.some((l) => {
       const gross = Number(l.quantity) * Number(l.unitPrice ?? 0);
       const disc = Number(l.discount ?? 0);
@@ -327,6 +327,12 @@ export class SalesService {
     if (needsApproval && !user.permissions.includes('sales:approve_discount')) {
       throw new ForbiddenException('Discounts above the approval threshold require sales:approve_discount');
     }
+  }
+
+  private async discountApprovalThreshold(): Promise<number> {
+    const setting = await this.prisma.setting.findUnique({ where: { key: 'sales.discountApprovalThreshold' } });
+    const value = Number(setting?.value);
+    return Number.isFinite(value) && value >= 0 ? value : 0.05;
   }
 
   private async loadOriginal(tx: Tx, dto: CreateSalesReturnDto) {
