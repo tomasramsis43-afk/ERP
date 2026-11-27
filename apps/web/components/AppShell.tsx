@@ -76,6 +76,7 @@ const NAV: NavGroup[] = [
       { href: '/accounting/accounts', ar: 'شجرة الحسابات', en: 'Chart of accounts', icon: 'book', perm: 'accounting:view' },
       { href: '/accounting/journal', ar: 'القيود اليومية', en: 'Journal entries', icon: 'clipboard', perm: 'accounting:view' },
       { href: '/accounting/ledger', ar: 'ميزان المراجعة والأستاذ', en: 'Trial balance & ledger', icon: 'chart', perm: 'accounting:view' },
+      { href: '/accounting/year-end', ar: 'الإقفال السنوي', en: 'Year-end closing', icon: 'lock', perm: 'accounting:approve' },
     ],
   },
   {
@@ -113,6 +114,7 @@ const TITLES: { prefix: string; ar: string; en: string }[] = [
   { prefix: '/accounting/accounts', ar: 'شجرة الحسابات', en: 'Chart of accounts' },
   { prefix: '/accounting/journal', ar: 'القيود اليومية', en: 'Journal entries' },
   { prefix: '/accounting/ledger', ar: 'ميزان المراجعة والأستاذ', en: 'Trial balance' },
+  { prefix: '/accounting/year-end', ar: 'الإقفال السنوي', en: 'Year-end closing' },
   { prefix: '/reports', ar: 'التقارير', en: 'Reports' },
   { prefix: '/hr', ar: 'الموارد البشرية', en: 'Human resources' },
   { prefix: '/admin', ar: 'الإدارة والصلاحيات', en: 'Administration' },

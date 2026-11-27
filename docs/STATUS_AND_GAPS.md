@@ -18,7 +18,7 @@ Compared with the master specification. "Missing" means no schema/API for it exi
 | Expiry dates / batches | Missing |
 | Product min/max levels | Only `reorderLevel` |
 | Route visit log (visited / not visited) | Missing |
-| Opening / closing (year-end) entries as a workflow | Missing (manual journals only) |
+| Year-end closing entries | Done: API `/accounting/year-end/:periodId/(preview|close)` and web page. Opening balances for a new company are still manual journals / account opening balances |
 | Cash-box day closing and physical-cash reconciliation | Partial (bank reconciliation and rep day closing exist) |
 | Credit-limit override with recorded approval; negative-stock override | Missing (hard blocks only) |
 | Mobile: returns, day closing, day summary, receipts, van stock view | Missing screens (sale, collection, customers, sync exist) |
