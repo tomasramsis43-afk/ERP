@@ -75,6 +75,10 @@ export class CreateSalesInvoiceDto {
   @IsOptional() @IsUUID()
   representativeId?: string;
 
+  /** Fulfil (part of) this sales order (sale invoices only). */
+  @IsOptional() @IsUUID()
+  salesOrderId?: string;
+
   @IsOptional() @IsString() @MaxLength(500)
   note?: string;
 
@@ -94,4 +98,33 @@ export class CreateSalesReturnDto extends CreateSalesInvoiceDto {
 export class CancelDocumentDto {
   @IsString() @MinLength(3) @MaxLength(300)
   reason!: string;
+}
+
+export enum SalesOrderKindDto {
+  QUOTATION = 'QUOTATION',
+  ORDER = 'ORDER',
+}
+
+export class CreateSalesOrderDto {
+  @IsEnum(SalesOrderKindDto)
+  kind!: SalesOrderKindDto;
+
+  @IsISO8601({ strict: true })
+  docDate!: string;
+
+  @IsOptional() @IsISO8601({ strict: true })
+  validUntil?: string;
+
+  @IsUUID()
+  customerId!: string;
+
+  @IsUUID()
+  warehouseId!: string;
+
+  @IsOptional() @IsString() @MaxLength(500)
+  note?: string;
+
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(300)
+  @ValidateNested({ each: true }) @Type(() => SalesLineDto)
+  lines!: SalesLineDto[];
 }

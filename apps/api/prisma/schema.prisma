@@ -292,6 +292,7 @@ model Product {
   @@index([nameAr])
   @@index([nameEn])
   purchaseOrderLines PurchaseOrderLine[]
+  salesOrderLines SalesOrderLine[]
 }
 
 /// Additional selling/buying units. factor = number of BASE units in one of this unit
@@ -352,6 +353,7 @@ model Customer {
   @@index([regionId])
   @@index([routeId])
   @@index([representativeId])
+  salesOrders SalesOrder[]
 }
 
 model Supplier {
@@ -399,6 +401,7 @@ model Warehouse {
   purchaseInvoices PurchaseInvoice[]
   vehicle Vehicle?
   purchaseOrders PurchaseOrder[]
+  salesOrders SalesOrder[]
 }
 
 model StockBalance {
@@ -534,6 +537,8 @@ model SalesInvoice {
   idempotencyKey    String          @unique
   journalEntryId    String?
   representativeId  String?
+  /// Set when this invoice fulfils (part of) a sales order.
+  salesOrderId      String?
   note              String?
   cancelReason      String?
   cancelledAt       DateTime?
@@ -542,8 +547,10 @@ model SalesInvoice {
 
   customer  Customer?  @relation(fields: [customerId], references: [id])
   warehouse Warehouse  @relation(fields: [warehouseId], references: [id])
+  salesOrder SalesOrder? @relation(fields: [salesOrderId], references: [id])
   lines     SalesInvoiceLine[]
 
+  @@index([salesOrderId])
   @@index([customerId, invoiceDate])
   @@index([invoiceDate])
   @@index([representativeId, invoiceDate])
@@ -1172,5 +1179,60 @@ model PurchaseOrderLine {
   product       Product       @relation(fields: [productId], references: [id])
 
   @@index([purchaseOrderId])
+  @@index([productId])
+}
+
+enum SalesOrderKind {
+  QUOTATION
+  ORDER
+}
+
+enum SalesOrderStatus {
+  OPEN
+  PARTIALLY_INVOICED
+  INVOICED
+  CANCELLED
+}
+
+/// A quotation (عرض سعر) or sales order (أمر بيع). It never moves stock or money: goods leave through a
+/// sales invoice that references the ORDER, and the invoiced quantity is derived from those posted invoices.
+model SalesOrder {
+  id          String           @id @default(uuid())
+  number      Int              @unique @default(autoincrement())
+  kind        SalesOrderKind   @default(QUOTATION)
+  customerId  String
+  warehouseId String
+  docDate     DateTime         @db.Date
+  validUntil  DateTime?        @db.Date
+  status      SalesOrderStatus @default(OPEN)
+  subtotal    Decimal          @db.Decimal(18, 2)
+  note        String?
+  cancelReason String?
+  createdById String?
+  createdAt   DateTime         @default(now())
+
+  customer  Customer         @relation(fields: [customerId], references: [id])
+  warehouse Warehouse        @relation(fields: [warehouseId], references: [id])
+  lines     SalesOrderLine[]
+  invoices  SalesInvoice[]
+
+  @@index([customerId, status])
+}
+
+model SalesOrderLine {
+  id           String  @id @default(uuid())
+  salesOrderId String
+  productId    String
+  unitId       String?
+  enteredQty   Decimal @db.Decimal(18, 4)
+  baseQty      Decimal @db.Decimal(18, 4)
+  unitPrice    Decimal @db.Decimal(18, 4)
+  discount     Decimal @default(0) @db.Decimal(18, 2)
+  lineNet      Decimal @db.Decimal(18, 2)
+
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id])
+
+  @@index([salesOrderId])
   @@index([productId])
 }

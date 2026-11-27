@@ -2,14 +2,48 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestj
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthUser, CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators';
 import { parsePage } from '../../common/utils/pagination';
-import { CancelDocumentDto, CreateSalesInvoiceDto, CreateSalesReturnDto } from './dto/sales.dto';
+import { CancelDocumentDto, CreateSalesInvoiceDto, CreateSalesOrderDto, CreateSalesReturnDto } from './dto/sales.dto';
+import { SalesOrdersService } from './sales-orders.service';
 import { SalesService } from './sales.service';
 
 @ApiTags('sales')
 @ApiBearerAuth()
 @Controller('sales')
 export class SalesController {
-  constructor(private readonly sales: SalesService) {}
+  constructor(
+    private readonly sales: SalesService,
+    private readonly orders: SalesOrdersService,
+  ) {}
+
+  @Get('orders')
+  @RequirePermissions('sales:view')
+  listOrders(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('customerId') customerId?: string, @Query('status') status?: string, @Query('kind') kind?: string) {
+    return this.orders.list(parsePage(page, pageSize), { customerId, status, kind });
+  }
+
+  @Get('orders/:id')
+  @RequirePermissions('sales:view')
+  getOrder(@Param('id', ParseUUIDPipe) id: string) {
+    return this.orders.get(id);
+  }
+
+  @Post('orders')
+  @RequirePermissions('sales:create')
+  createOrder(@Body() dto: CreateSalesOrderDto, @CurrentUser() user: AuthUser) {
+    return this.orders.create(dto, user);
+  }
+
+  @Post('orders/:id/confirm')
+  @RequirePermissions('sales:create')
+  confirmOrder(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.orders.confirm(id, user);
+  }
+
+  @Post('orders/:id/cancel')
+  @RequirePermissions('sales:cancel')
+  cancelOrder(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CancelDocumentDto, @CurrentUser() user: AuthUser) {
+    return this.orders.cancel(id, dto.reason, user);
+  }
 
   @Get('invoices')
   @RequirePermissions('sales:view')
