@@ -175,6 +175,7 @@ model Account {
   parent   Account?  @relation("AccountTree", fields: [parentId], references: [id])
   children Account[] @relation("AccountTree")
   lines    JournalLine[]
+  recurringLines RecurringJournalLine[]
 
   @@index([parentId])
   @@index([type])
@@ -229,6 +230,39 @@ model JournalLine {
   @@index([entryId])
   @@index([accountId])
   @@index([partyType, partyId])
+}
+
+/// A reusable balanced entry template posted on a schedule (rent, salaries, accruals...).
+model RecurringJournal {
+  id           String    @id @default(uuid())
+  code         String    @unique
+  description  String
+  frequency    String    // DAILY | WEEKLY | MONTHLY
+  dayOfMonth   Int?      // 1..28 for MONTHLY
+  dayOfWeek    Int?      // 0..6 for WEEKLY (Sunday = 0)
+  nextRunDate  DateTime  @db.Date
+  lastRunDate  DateTime? @db.Date
+  isActive     Boolean   @default(true)
+  createdById  String?
+  createdAt    DateTime  @default(now())
+
+  lines RecurringJournalLine[]
+
+  @@index([isActive, nextRunDate])
+}
+
+model RecurringJournalLine {
+  id          String  @id @default(uuid())
+  templateId  String
+  accountId   String
+  debit       Decimal @default(0) @db.Decimal(18, 2)
+  credit      Decimal @default(0) @db.Decimal(18, 2)
+  description String?
+
+  template RecurringJournal @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  account  Account          @relation(fields: [accountId], references: [id])
+
+  @@index([templateId])
 }
 
 // ---------------------------------------------------------------
