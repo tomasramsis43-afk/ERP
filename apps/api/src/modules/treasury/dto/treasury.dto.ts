@@ -186,3 +186,25 @@ export class ReconcileDto {
   @IsUUID('all', { each: true })
   journalLineIds!: string[];
 }
+
+export class CloseCashboxDto {
+  @IsUUID()
+  financialAccountId!: string;
+
+  /** Business day being closed (yyyy-mm-dd). Must be after the last closed day of this cash box. */
+  @IsISO8601({ strict: true })
+  date!: string;
+
+  /** Physically counted cash at the end of the day. */
+  @Matches(MONEY, { message: 'countedAmount must be a non-negative amount with up to 2 decimals' })
+  countedAmount!: string;
+
+  /** Required whenever the count differs from the ledger balance. */
+  @IsOptional() @IsString() @MaxLength(500)
+  reason?: string;
+}
+
+export class ReopenCashboxClosingDto {
+  @IsString() @MinLength(3) @MaxLength(300)
+  reason!: string;
+}

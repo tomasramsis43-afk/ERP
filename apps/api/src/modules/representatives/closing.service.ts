@@ -149,6 +149,9 @@ export class ClosingService {
       // ---- cash: settle the custody account to the main cash box --------------
       const expectedCash = g.expectedCash;
       const cashDiff = declared.minus(expectedCash);
+      if ((!cashDiff.isZero() || changed.length > 0) && !dto.differenceReason?.trim()) {
+        throw new BadRequestException('A documented reason (differenceReason) is required when the cash or stock count differs from the system');
+      }
       const cashLines = [];
       if (expectedCash.gt(0)) cashLines.push({ accountId: (await this.glOf(tx, rep.financialAccountId)), debit: 0, credit: expectedCash });
       if (declared.gt(0)) cashLines.push({ accountId: main.glAccountId, debit: declared, credit: 0 });
@@ -204,6 +207,7 @@ export class ClosingService {
           loadedValue: g.loadedValue.toFixed(2),
           stockDifferenceValue: stockDiffValue.toFixed(2),
           commissionTotal: commissionTotal.toFixed(2),
+          differenceReason: dto.differenceReason?.trim() || null,
           createdById: user.id,
           lines: {
             create: [...diffs.keys()].map((productId) => {

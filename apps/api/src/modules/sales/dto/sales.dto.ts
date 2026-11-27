@@ -75,10 +75,14 @@ export class CreateSalesInvoiceDto {
   @IsOptional() @IsUUID()
   representativeId?: string;
 
+  /** Fulfil (part of) this sales order (sale invoices only). */
+  @IsOptional() @IsUUID()
+  salesOrderId?: string;
+
   @IsOptional() @IsString() @MaxLength(500)
   note?: string;
 
-  /** Required when the sale exceeds the customer's credit limit (needs sales:override_credit_limit); recorded in the audit log. */
+  /** Required to sell on credit beyond the customer's limit; only users with sales:override_credit_limit may use it. */
   @IsOptional() @IsString() @MinLength(3) @MaxLength(300)
   creditOverrideReason?: string;
 
@@ -98,4 +102,33 @@ export class CreateSalesReturnDto extends CreateSalesInvoiceDto {
 export class CancelDocumentDto {
   @IsString() @MinLength(3) @MaxLength(300)
   reason!: string;
+}
+
+export enum SalesOrderKindDto {
+  QUOTATION = 'QUOTATION',
+  ORDER = 'ORDER',
+}
+
+export class CreateSalesOrderDto {
+  @IsEnum(SalesOrderKindDto)
+  kind!: SalesOrderKindDto;
+
+  @IsISO8601({ strict: true })
+  docDate!: string;
+
+  @IsOptional() @IsISO8601({ strict: true })
+  validUntil?: string;
+
+  @IsUUID()
+  customerId!: string;
+
+  @IsUUID()
+  warehouseId!: string;
+
+  @IsOptional() @IsString() @MaxLength(500)
+  note?: string;
+
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(300)
+  @ValidateNested({ each: true }) @Type(() => SalesLineDto)
+  lines!: SalesLineDto[];
 }

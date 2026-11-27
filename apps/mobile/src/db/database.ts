@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import { CustomerPrice, Product } from '../core/cart';
 import { OutboxItem } from '../core/outbox';
+import { Receipt, pruneReceipts } from '../core/receipts';
 import { Snapshot, SyncStore } from '../sync/syncEngine';
 
 export interface Customer {
@@ -35,6 +36,10 @@ export function db(): Promise<SQLite.SQLiteDatabase> {
         status TEXT NOT NULL, error TEXT, attempts INTEGER NOT NULL DEFAULT 0
       );
       CREATE TABLE IF NOT EXISTS snapshot (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS receipts (
+        opId TEXT PRIMARY KEY, date TEXT NOT NULL, createdAt TEXT NOT NULL, body TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS receipts_date ON receipts (date);
     `);
     return d;
   })();
@@ -110,3 +115,22 @@ export const local = {
     await d.runAsync('INSERT OR REPLACE INTO snapshot (key, value) VALUES (?, ?)', ['vanStock', JSON.stringify(rows)]);
   },
 };
+
+/** Keeps a permanent local record of an operation (receipt + day summary). Same opId is stored once. */
+export async function addReceipt(r: Receipt): Promise<void> {
+  const d = await db();
+  await d.runAsync('INSERT OR IGNORE INTO receipts (opId, date, createdAt, body) VALUES (?,?,?,?)', [r.opId, r.date, r.createdAt, JSON.stringify(r)]);
+}
+
+export async function receiptsForDate(date: string): Promise<Receipt[]> {
+  const d = await db();
+  const rows = await d.getAllAsync<{ body: string }>('SELECT body FROM receipts WHERE date = ? ORDER BY createdAt', [date]);
+  return rows.map((x) => JSON.parse(x.body) as Receipt);
+}
+
+export async function pruneOldReceipts(today: string, keepDays = 30): Promise<void> {
+  const d = await db();
+  const all = await d.getAllAsync<{ opId: string; date: string }>('SELECT opId, date FROM receipts');
+  const keep = new Set(pruneReceipts(all.map((x) => ({ opId: x.opId, date: x.date }) as Receipt), today, keepDays).map((x) => x.opId));
+  for (const row of all) if (!keep.has(row.opId)) await d.runAsync('DELETE FROM receipts WHERE opId = ?', [row.opId]);
+}

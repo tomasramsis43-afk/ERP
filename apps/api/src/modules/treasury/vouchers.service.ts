@@ -7,6 +7,7 @@ import { SystemAccountsService } from '../accounting/accounts/system-accounts.se
 import { toDate } from '../accounting/dto/journal.dto';
 import { JournalPostingService, Tx } from '../accounting/journal/journal-posting.service';
 import { AuditService } from '../audit/audit.service';
+import { CashboxClosingService } from './cashbox-closing.service';
 import { CreateVoucherDto } from './dto/treasury.dto';
 import { FinancialAccountsService } from './financial-accounts.service';
 
@@ -47,6 +48,7 @@ export class VouchersService {
       for (const id of ids) locked.set(id, await this.fa.lock(tx, id));
       const from = locked.get(dto.financialAccountId)!;
       const to = dto.toFinancialAccountId ? locked.get(dto.toFinancialAccountId)! : undefined;
+      await CashboxClosingService.assertDayOpen(tx, ids, date); // a closed cash-box day is frozen
 
       if (dto.representativeId) {
         const rep = await tx.representative.findUnique({ where: { id: dto.representativeId } });
@@ -110,6 +112,11 @@ export class VouchersService {
       const v = await tx.voucher.findUnique({ where: { id } });
       if (!v) throw new NotFoundException('Voucher not found');
       if (v.status !== 'POSTED') throw new ConflictException('Voucher is already cancelled');
+      await CashboxClosingService.assertDayOpen(
+        tx,
+        [v.financialAccountId, v.toFinancialAccountId].filter((x): x is string => Boolean(x)),
+        v.voucherDate,
+      );
 
       // Cancelling takes money back out of the account that received it.
       const outAccountId = v.type === 'RECEIPT' ? v.financialAccountId : v.type === 'TRANSFER' ? v.toFinancialAccountId : null;

@@ -56,16 +56,21 @@ export class InventoryReportsService {
     return { totalValue: fmt(total), rows, glComparison };
   }
 
-  /** Products at or below their reorder level, summed across warehouses (or one warehouse). */
+  /**
+   * Products at or below their reorder level or below their safety stock (minLevel), summed across
+   * warehouses (or one warehouse). `belowMin` marks the more urgent case; `shortfall` is measured
+   * against the higher of the two thresholds.
+   */
   async lowStock(warehouseId?: string) {
     const products = await this.prisma.product.findMany({
-      where: { isActive: true, reorderLevel: { gt: 0 } },
+      where: { isActive: true, OR: [{ reorderLevel: { gt: 0 } }, { minLevel: { gt: 0 } }] },
       select: {
         id: true,
         code: true,
         nameAr: true,
         nameEn: true,
         reorderLevel: true,
+        minLevel: true,
         balances: { where: warehouseId ? { warehouseId } : {}, select: { quantity: true } },
       },
     });
@@ -73,6 +78,10 @@ export class InventoryReportsService {
       .map((p) => {
         const onHand = p.balances.reduce((s, b) => s.plus(num(b.quantity)), dec(0));
         const reorder = num(p.reorderLevel);
+        const min = num(p.minLevel);
+        const belowMin = min.gt(0) && onHand.lt(min);
+        const atReorder = reorder.gt(0) && onHand.lte(reorder);
+        const target = reorder.gt(min) ? reorder : min;
         return {
           productId: p.id,
           code: p.code,
@@ -80,12 +89,49 @@ export class InventoryReportsService {
           nameEn: p.nameEn,
           onHand: fmt(onHand, 4),
           reorderLevel: fmt(reorder, 4),
-          shortfall: fmt(reorder.minus(onHand), 4),
-          isLow: onHand.lte(reorder),
+          minLevel: fmt(min, 4),
+          shortfall: fmt(target.minus(onHand), 4),
+          belowMin,
+          isLow: belowMin || atReorder,
         };
       })
       .filter((r) => r.isLow)
       .sort((a, b) => Number(b.shortfall) - Number(a.shortfall));
+  }
+
+  /** Products whose stock exceeds their ceiling (maxLevel), with the excess valued at average cost. */
+  async overstock(warehouseId?: string) {
+    const products = await this.prisma.product.findMany({
+      where: { isActive: true, maxLevel: { gt: 0 } },
+      select: {
+        id: true,
+        code: true,
+        nameAr: true,
+        nameEn: true,
+        maxLevel: true,
+        avgCost: true,
+        balances: { where: warehouseId ? { warehouseId } : {}, select: { quantity: true } },
+      },
+    });
+    return products
+      .map((p) => {
+        const onHand = p.balances.reduce((s, b) => s.plus(num(b.quantity)), dec(0));
+        const max = num(p.maxLevel);
+        const excess = onHand.minus(max);
+        return { p, onHand, max, excess };
+      })
+      .filter((r) => r.excess.gt(0))
+      .map(({ p, onHand, max, excess }) => ({
+        productId: p.id,
+        code: p.code,
+        nameAr: p.nameAr,
+        nameEn: p.nameEn,
+        onHand: fmt(onHand, 4),
+        maxLevel: fmt(max, 4),
+        excess: fmt(excess, 4),
+        excessValue: fmt(excess.mul(num(p.avgCost))),
+      }))
+      .sort((a, b) => Number(b.excessValue) - Number(a.excessValue));
   }
 
   /** Products with stock on hand but no sale in the last `days` days. */

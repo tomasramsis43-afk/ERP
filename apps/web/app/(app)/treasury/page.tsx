@@ -25,7 +25,7 @@ import {
   Textarea,
 } from '@/components/ui';
 import { useApi, usePaged } from '@/lib/hooks';
-import { post, uuid } from '@/lib/api';
+import { get, post, uuid } from '@/lib/api';
 import { queryString, today } from '@/lib/format';
 
 interface FinAcc { id: string; code: string; kind: 'CASHBOX' | 'BANK'; nameAr: string; nameEn: string; bankName?: string | null; accountNumber?: string | null; balance: string }
@@ -637,7 +637,7 @@ function ReconTab() {
   useEffect(() => {
     if (!bankId) { setHistory([]); return; }
     let stale = false;
-    fetch(`/api/proxy/banks/${bankId}/reconciliations`).then((r) => r.json()).then((d) => { if (!stale) setHistory(Array.isArray(d) ? d : d?.items ?? []); }).catch(() => undefined);
+    get<any>(`banks/${bankId}/reconciliations`).then((d) => { if (!stale) setHistory(Array.isArray(d) ? d : d?.items ?? []); }).catch((e: Error) => { if (!stale) { setHistory([]); toast.failure(e.message); } });
     return () => { stale = true; };
   }, [bankId]);
 

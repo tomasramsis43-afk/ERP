@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useApp, useToast } from '@/components/Providers';
 import { Button, Card, DataTable, DateText, EmptyState, ErrorNote, Field, IconButton, Input, Loading, Modal, Money, PageHeader, Pagination, Select, Tabs, Textarea } from '@/components/ui';
 import { ResourcePage } from '@/components/ResourcePage';
-import { useApi, usePaged } from '@/lib/hooks';
+import { useApi, useOptions, usePaged } from '@/lib/hooks';
 import { post } from '@/lib/api';
 import { queryString, today } from '@/lib/format';
 
@@ -13,8 +13,8 @@ interface Expense { id: string; category: string; date: string; amount: string; 
 
 export default function VehiclesPage() {
   const { tr, lang } = useApp();
-  const [detailId, setDetailId] = useState<string | null>(null);
   const [expVehicle, setExpVehicle] = useState<Vehicle | null>(null);
+  const routes = useOptions<{ id: string; nameAr: string }>('routes?pageSize=100', (r) => ({ value: r.id, label: r.nameAr }));
   return (
     <>
       <PageHeader title={tr('السيارات', 'Vehicles')} sub={tr('السيارات و renewals والمصروفات', 'Vehicles, renewals and expenses')}>
@@ -35,7 +35,7 @@ export default function VehiclesPage() {
           { name: 'plateNumber', label: tr('رقم اللوحة', 'Plate number'), required: true, hideInEdit: true, col: 'col-4' },
           { name: 'model', label: tr('الموديل', 'Model'), required: true, col: 'col-4' },
           { name: 'driverName', label: tr('اسم السائق', 'Driver name'), col: 'col-4' },
-          { name: 'routeId', label: tr('الخط', 'Route'), col: 'col-4' },
+          { name: 'routeId', label: tr('الخط', 'Route'), type: 'select', options: routes.options, col: 'col-4' },
           { name: 'licenseExpiry', label: tr('انتهاء الرخصة', 'License expiry'), type: 'date', col: 'col-4' },
           { name: 'insuranceExpiry', label: tr('انتهاء التأمين', 'Insurance expiry'), type: 'date', col: 'col-4' },
           { name: 'isActive', label: tr('نشط', 'Active'), type: 'checkbox', hideInCreate: true, col: 'col-4' },

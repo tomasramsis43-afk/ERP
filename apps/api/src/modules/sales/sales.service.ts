@@ -13,6 +13,7 @@ import { UnitConversionService } from '../catalog/unit-conversion.service';
 import { StockService } from '../inventory/stock.service';
 import { PartyLedgerService } from '../parties/party-ledger.service';
 import { CreateSalesInvoiceDto, CreateSalesReturnDto } from './dto/sales.dto';
+import { SalesOrdersService } from './sales-orders.service';
 
 interface PricedLine {
   productId: string;
@@ -38,6 +39,7 @@ export class SalesService {
     private readonly vat: VatService,
     private readonly parties: PartyLedgerService,
     private readonly audit: AuditService,
+    private readonly orders: SalesOrdersService,
   ) {}
 
   createInvoice(dto: CreateSalesInvoiceDto, user: AuthUser) {
@@ -70,7 +72,7 @@ export class SalesService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.salesInvoice.findUnique({ where: { idempotencyKey: dto.idempotencyKey }, include: INCLUDE });
-      if (existing) return { invoice: existing, created: false, creditOverride: null as Record<string, string> | null };
+      if (existing) return { invoice: existing, created: false };
 
       const warehouse = await tx.warehouse.findUnique({ where: { id: dto.warehouseId } });
       if (!warehouse || !warehouse.isActive) throw new BadRequestException('Warehouse not found or inactive');
@@ -83,7 +85,9 @@ export class SalesService {
 
       const original = kind === 'RETURN' && dto.originalInvoiceId ? await this.loadOriginal(tx, dto) : null;
 
-      const priced = await this.priceLines(tx, dto, customer?.id, user, kind);
+      const order = dto.salesOrderId ? await this.loadOrder(tx, kind, dto, customer?.id, warehouse.id) : null;
+      const priced = await this.priceLines(tx, dto, customer?.id, user, kind, order?.agreed);
+      if (order) await this.checkOrderQuantities(tx, order.id, priced);
       const subtotal = priced.reduce((a, l) => a.plus(l.lineGross), new Decimal(0));
       const discountTotal = priced.reduce((a, l) => a.plus(l.discount), new Decimal(0));
       const net = subtotal.minus(discountTotal);
@@ -92,27 +96,17 @@ export class SalesService {
       const total = net.plus(vatTotal);
       if (total.lte(0)) throw new BadRequestException('Document total must be greater than zero');
 
-      let creditOverride: Record<string, string> | null = null;
+      let creditOverride: { balance: Decimal; limit: string } | null = null;
       if (kind === 'SALE' && dto.paymentKind === 'CREDIT' && customer) {
         const balance = await this.parties.balance('CUSTOMER', customer.id, tx);
-        if (balance.plus(total).gt(customer.creditLimit.toString())) {
-          if (!user.permissions.includes('sales:override_credit_limit')) {
-            throw new BadRequestException(
-              `Credit limit exceeded: balance ${balance.toFixed(2)} + ${total.toFixed(2)} > limit ${customer.creditLimit.toString()}`,
-            );
+        const limit = customer.creditLimit.toString();
+        if (balance.plus(total).gt(limit)) {
+          const msg = `Credit limit exceeded: balance ${balance.toFixed(2)} + ${total.toFixed(2)} > limit ${limit}`;
+          if (!user.permissions.includes('sales:override_credit_limit')) throw new BadRequestException(msg);
+          if (!dto.creditOverrideReason?.trim()) {
+            throw new BadRequestException(`${msg}. Overriding the limit needs a recorded reason (creditOverrideReason)`);
           }
-          // An authorised override is an approval: it needs a reason and is recorded in the audit log.
-          const reason = dto.creditOverrideReason?.trim();
-          if (!reason) {
-            throw new BadRequestException('A reason (creditOverrideReason) is required to exceed the credit limit');
-          }
-          creditOverride = {
-            customerId: customer.id,
-            balance: balance.toFixed(2),
-            documentTotal: total.toFixed(2),
-            creditLimit: customer.creditLimit.toString(),
-            reason,
-          };
+          creditOverride = { balance, limit };
         }
       }
 
@@ -131,6 +125,7 @@ export class SalesService {
           condition: kind === 'RETURN' ? dto.condition ?? 'GOOD' : 'GOOD',
           idempotencyKey: dto.idempotencyKey,
           representativeId: dto.representativeId,
+          salesOrderId: dto.salesOrderId,
           note: dto.note,
           createdById: user.id,
         },
@@ -155,6 +150,20 @@ export class SalesService {
         });
       }
       await tx.salesInvoiceLine.createMany({ data: lineRows });
+      if (creditOverride) {
+        await tx.creditOverride.create({
+          data: {
+            invoiceId: invoice.id,
+            customerId: customer!.id,
+            balanceBefore: roundMoney(creditOverride.balance).toFixed(2),
+            invoiceTotal: roundMoney(total).toFixed(2),
+            creditLimit: creditOverride.limit,
+            reason: dto.creditOverrideReason!.trim(),
+            approvedById: user.id,
+          },
+        });
+      }
+      if (dto.salesOrderId) await this.orders.refreshStatus(tx, dto.salesOrderId);
 
       const cost = roundMoney(costTotal);
       const entry = await this.postJournal(tx, kind, invoice.id, invoice.number, date, dto, warehouse.type, custodyGl, {
@@ -169,7 +178,7 @@ export class SalesService {
         data: { costTotal: cost.toFixed(2), journalEntryId: entry.id },
         include: INCLUDE,
       });
-      return { invoice: saved, created: true, creditOverride };
+      return { invoice: saved, created: true };
     });
 
     if (result.created) {
@@ -180,14 +189,15 @@ export class SalesService {
         entityId: result.invoice.id,
         newData: { number: result.invoice.number, total: result.invoice.total.toString(), paymentKind: dto.paymentKind },
       });
-      if (result.creditOverride) {
+      const override = await this.prisma.creditOverride.findUnique({ where: { invoiceId: result.invoice.id } });
+      if (override) {
         await this.audit.record({
           userId: user.id,
           action: 'CREDIT_LIMIT_OVERRIDE',
           entity: 'SalesInvoice',
           entityId: result.invoice.id,
-          newData: { number: result.invoice.number, ...result.creditOverride },
-          reason: result.creditOverride.reason,
+          newData: { balanceBefore: override.balanceBefore.toString(), invoiceTotal: override.invoiceTotal.toString(), creditLimit: override.creditLimit.toString() },
+          reason: override.reason,
         });
       }
     }
@@ -232,11 +242,17 @@ export class SalesService {
           tx,
         );
       }
-      return tx.salesInvoice.update({
+      const cancelled = await tx.salesInvoice.update({
         where: { id },
         data: { status: 'CANCELLED', cancelReason: reason, cancelledAt: new Date() },
         include: INCLUDE,
       });
+      // The goods are back: reopen the order's remaining quantities.
+      if (inv.salesOrderId) {
+        await this.orders.lock(tx, inv.salesOrderId);
+        await this.orders.refreshStatus(tx, inv.salesOrderId);
+      }
+      return cancelled;
     });
     await this.audit.record({
       userId: user.id,
@@ -301,7 +317,33 @@ export class SalesService {
     return original;
   }
 
-  private async priceLines(tx: Tx, dto: CreateSalesInvoiceDto, customerId: string | undefined, user: AuthUser, kind: SalesDocKind) {
+  /** An invoice fulfilling an order must match its customer/warehouse; the order's agreed prices need no price-edit right. */
+  private async loadOrder(tx: Tx, kind: SalesDocKind, dto: CreateSalesInvoiceDto, customerId: string | undefined, warehouseId: string) {
+    if (kind !== 'SALE') throw new BadRequestException('A sales return cannot reference a sales order');
+    await this.orders.lock(tx, dto.salesOrderId!);
+    const order = await tx.salesOrder.findUnique({ where: { id: dto.salesOrderId! }, include: { lines: true } });
+    if (!order) throw new BadRequestException('Sales order not found');
+    if (order.kind !== 'ORDER') throw new ConflictException('A quotation must be confirmed before it can be invoiced');
+    if (order.status === 'CANCELLED' || order.status === 'INVOICED') throw new ConflictException('Sales order is not open for invoicing');
+    if (order.customerId !== customerId) throw new BadRequestException('Customer does not match the sales order');
+    if (order.warehouseId !== warehouseId) throw new BadRequestException('Warehouse does not match the sales order');
+    const agreed = new Map<string, Decimal>();
+    for (const l of order.lines) agreed.set(`${l.productId}|${l.unitId ?? ''}`, dec(l.unitPrice.toString()));
+    return { id: order.id, agreed };
+  }
+
+  private async checkOrderQuantities(tx: Tx, orderId: string, priced: PricedLine[]) {
+    const remaining = new Map((await this.orders.quantities(tx, orderId)).map((q) => [q.productId, q.remaining]));
+    const incoming = new Map<string, Decimal>();
+    for (const l of priced) incoming.set(l.productId, (incoming.get(l.productId) ?? new Decimal(0)).plus(l.baseQty));
+    for (const [productId, qty] of incoming) {
+      const left = remaining.get(productId);
+      if (left === undefined) throw new BadRequestException('Product is not on the sales order');
+      if (qty.gt(left)) throw new BadRequestException(`Invoiced quantity exceeds the outstanding order quantity (remaining ${left.toFixed(4)})`);
+    }
+  }
+
+  private async priceLines(tx: Tx, dto: CreateSalesInvoiceDto, customerId: string | undefined, user: AuthUser, kind: SalesDocKind, agreed?: Map<string, Decimal>) {
     const out: PricedLine[] = [];
     for (const l of dto.lines) {
       const enteredQty = dec(l.quantity);
@@ -319,7 +361,8 @@ export class SalesService {
       let unitPrice = defaultPrice;
       if (l.unitPrice !== undefined) {
         unitPrice = dec(l.unitPrice);
-        if (!unitPrice.eq(defaultPrice) && !user.permissions.includes('sales:edit_price')) {
+        const agreedPrice = agreed?.get(`${l.productId}|${l.unitId ?? ''}`);
+        if (!unitPrice.eq(defaultPrice) && !(agreedPrice && unitPrice.eq(agreedPrice)) && !user.permissions.includes('sales:edit_price')) {
           throw new ForbiddenException('Changing prices requires sales:edit_price');
         }
       }

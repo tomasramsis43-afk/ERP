@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { dec } from '@erp/accounting-engine';
 import { PageParams } from '../../common/utils/pagination';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -48,6 +49,7 @@ export class ProductsService {
       throw new ConflictException('Product code already exists');
     }
     this.assertUnits(dto.baseUnitId, dto.units);
+    this.assertLevels(dto.minLevel ?? '0', dto.reorderLevel ?? '0', dto.maxLevel ?? '0');
     const { units, ...data } = dto;
     try {
       const product = await this.prisma.product.create({
@@ -71,6 +73,14 @@ export class ProductsService {
     const existing = await this.get(id);
     const { units, ...data } = dto;
     if (units) this.assertUnits(existing.baseUnitId, units);
+    if (dto.minLevel !== undefined || dto.reorderLevel !== undefined || dto.maxLevel !== undefined) {
+      // Validate the resulting combination, so lowering only the maximum cannot slip under an existing reorder level.
+      this.assertLevels(
+        dto.minLevel ?? existing.minLevel.toString(),
+        dto.reorderLevel ?? existing.reorderLevel.toString(),
+        dto.maxLevel ?? existing.maxLevel.toString(),
+      );
+    }
     try {
       const product = await this.prisma.$transaction(async (tx) => {
         if (units) {
@@ -95,6 +105,14 @@ export class ProductsService {
       return product;
     } catch (e) {
       throw this.mapKnownError(e);
+    }
+  }
+
+  /** A ceiling (maxLevel > 0) must not sit below the safety stock or the reorder level. 0 means "not set". */
+  private assertLevels(min: string, reorder: string, max: string): void {
+    const ceiling = dec(max);
+    if (ceiling.gt(0) && (ceiling.lt(dec(min)) || ceiling.lt(dec(reorder)))) {
+      throw new BadRequestException('maxLevel must be at least minLevel and reorderLevel');
     }
   }
 

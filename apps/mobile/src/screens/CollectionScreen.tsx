@@ -1,7 +1,8 @@
 import * as Crypto from 'expo-crypto';
 import React, { useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, Text, TextInput, View } from 'react-native';
-import { Customer, enqueue, local } from '../db/database';
+import { Receipt } from '../core/receipts';
+import { Customer, addReceipt, enqueue, local } from '../db/database';
 import { pick, t } from '../i18n';
 import { useTheme } from './theme';
 
@@ -21,8 +22,9 @@ export function CollectionScreen({ onSaved }: { onSaved: () => void }) {
     if (!customer) return Alert.alert(t('selectCustomer'));
     if (!MONEY.test(amount) || Number(amount) <= 0) return Alert.alert(t('amount'));
     const now = new Date();
+    const opId = Crypto.randomUUID();
     await enqueue({
-      opId: Crypto.randomUUID(),
+      opId,
       type: 'COLLECTION',
       clientCreatedAt: now.toISOString(),
       status: 'PENDING',
@@ -30,6 +32,18 @@ export function CollectionScreen({ onSaved }: { onSaved: () => void }) {
       attempts: 0,
       payload: { customerId: customer, amount, date: now.toISOString().slice(0, 10) },
     });
+    const who = customers.find((x) => x.id === customer);
+    const receipt: Receipt = {
+      opId,
+      kind: 'COLLECTION',
+      date: now.toISOString().slice(0, 10),
+      createdAt: now.toISOString(),
+      customerId: customer,
+      customerName: who ? pick(who.nameAr, who.nameEn) : null,
+      lines: [],
+      total: Number(amount).toFixed(2),
+    };
+    await addReceipt(receipt);
     Alert.alert(t('savedOffline'));
     setAmount('');
     setCustomer(null);

@@ -76,6 +76,7 @@ async function authed<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const get = <T>(path: string) => authed<T>(path);
+export const post = <T>(path: string, body: unknown) => authed<T>(path, { method: 'POST', body: JSON.stringify(body) });
 
 export const syncApi: SyncApi = {
   async push(deviceId, operations) {

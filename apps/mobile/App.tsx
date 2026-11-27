@@ -1,16 +1,20 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, SafeAreaView, Text, View } from 'react-native';
+import { Alert, Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
 import { hasSession, logout } from './src/api/client';
 import { Lang, getLang, setLang, t } from './src/i18n';
 import { CollectionScreen } from './src/screens/CollectionScreen';
+import { CloseDayScreen } from './src/screens/CloseDayScreen';
 import { CustomersScreen } from './src/screens/CustomersScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
+import { DaySummaryScreen } from './src/screens/DaySummaryScreen';
+import { ReturnScreen } from './src/screens/ReturnScreen';
 import { SaleScreen } from './src/screens/SaleScreen';
+import { VanStockScreen } from './src/screens/VanStockScreen';
 import { SyncScreen } from './src/screens/SyncScreen';
 import { useTheme } from './src/screens/theme';
 
-type Tab = 'customers' | 'sale' | 'collection' | 'sync';
+type Tab = 'customers' | 'sale' | 'return' | 'collection' | 'van' | 'summary' | 'close' | 'sync';
 
 export default function App() {
   const { s, c } = useTheme();
@@ -43,7 +47,11 @@ export default function App() {
   const tabs: [Tab, string][] = [
     ['customers', t('customers')],
     ['sale', t('newSale')],
+    ['return', t('returns')],
     ['collection', t('collection')],
+    ['van', t('vanStock')],
+    ['summary', t('daySummary')],
+    ['close', t('closeDay')],
     ['sync', t('outbox')],
   ];
   return (
@@ -56,16 +64,20 @@ export default function App() {
       <View style={{ flex: 1 }}>
         {tab === 'customers' && <CustomersScreen version={version} onSell={(id) => { setSaleCustomer(id); setTab('sale'); }} />}
         {tab === 'sale' && <SaleScreen key={saleCustomer ?? 'none'} customerId={saleCustomer} onSaved={() => { bump(); setTab('sync'); }} />}
+        {tab === 'return' && <ReturnScreen onSaved={() => { bump(); setTab('sync'); }} />}
+        {tab === 'van' && <VanStockScreen version={version} />}
+        {tab === 'summary' && <DaySummaryScreen version={version} />}
         {tab === 'collection' && <CollectionScreen onSaved={() => { bump(); setTab('sync'); }} />}
+        {tab === 'close' && <CloseDayScreen version={version} onClosed={bump} />}
         {tab === 'sync' && <SyncScreen onSynced={bump} />}
       </View>
-      <View style={[s.row, { borderTopWidth: 1, borderColor: c.border }]}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, borderTopWidth: 1, borderColor: c.border }}>
         {tabs.map(([key, label]) => (
-          <Pressable key={key} style={{ flex: 1, padding: 14, alignItems: 'center' }} onPress={() => { if (key === 'sale') setSaleCustomer(null); setTab(key); }}>
+          <Pressable key={key} style={{ paddingHorizontal: 16, paddingVertical: 14, alignItems: 'center' }} onPress={() => { if (key === 'sale') setSaleCustomer(null); setTab(key); }}>
             <Text style={{ color: tab === key ? c.primary : c.sub, fontWeight: tab === key ? '700' : '400' }}>{label}</Text>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

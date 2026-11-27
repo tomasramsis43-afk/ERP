@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AccountingModule } from '../accounting/accounting.module';
+import { CashboxClosingService } from './cashbox-closing.service';
 import { ChequesService } from './cheques.service';
 import { FinancialAccountsService } from './financial-accounts.service';
 import { ReconciliationService } from './reconciliation.service';
@@ -9,7 +10,7 @@ import { VouchersService } from './vouchers.service';
 @Module({
   imports: [AccountingModule],
   controllers: [TreasuryController],
-  providers: [FinancialAccountsService, VouchersService, ChequesService, ReconciliationService],
+  providers: [FinancialAccountsService, VouchersService, ChequesService, ReconciliationService, CashboxClosingService],
   exports: [FinancialAccountsService, VouchersService],
 })
 export class TreasuryModule {}

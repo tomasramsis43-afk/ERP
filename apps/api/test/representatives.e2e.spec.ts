@@ -147,10 +147,16 @@ d('representatives, vehicles, custody, daily closing and commissions (requires s
     await closeDay(A, { date: today, declaredCash: '230', counts: [{ productId, quantity: '25' }] }, other.token).expect(403);
   });
 
+  it('refuses to close with a cash or stock difference unless a reason is documented', async () => {
+    await closeDay(A, { date: today, declaredCash: '220', counts: [{ productId, quantity: '24' }] }).expect(400);
+    await closeDay(A, { date: today, declaredCash: '220', counts: [{ productId, quantity: '24' }], differenceReason: 'x' }).expect(400);
+  });
+
   it('closes the day: shortages are booked, cash is handed to the main box, commission accrues', async () => {
     const [mainCash0, diff0, van0, accrued0, comm0] = await Promise.all([tb('1101'), tb('59'), tb('1402'), tb('23'), tb('53')]);
     // 1 unit short (cost 10) and 10 of cash short.
-    const r = await closeDay(A, { date: today, declaredCash: '220', counts: [{ productId, quantity: '24' }] }).expect(201);
+    const r = await closeDay(A, { date: today, declaredCash: '220', counts: [{ productId, quantity: '24' }], differenceReason: 'one unit and 10 cash short' }).expect(201);
+    expect(r.body.differenceReason).toBe('one unit and 10 cash short');
     expect(Number(r.body.cashDifference)).toBe(-10);
     expect(Number(r.body.stockDifferenceValue)).toBe(-10);
     expect(Number(r.body.commissionTotal)).toBe(6); // 2% of 200 + 2% of 100
@@ -195,11 +201,11 @@ d('representatives, vehicles, custody, daily closing and commissions (requires s
     const B = await newRep();
     await load(B.vanId, '20', yesterday);
     const inv = (await sell(B, { paymentKind: 'CREDIT', customerId, invoiceDate: yesterday, lines: [{ productId, quantity: '5' }] }).expect(201)).body;
-    const day1 = (await closeDay(B, { date: yesterday, declaredCash: '0', counts: [{ productId, quantity: '15' }] }).expect(201)).body;
+    const day1 = (await closeDay(B, { date: yesterday, declaredCash: '0', counts: [{ productId, quantity: '15' }], differenceReason: 'test' }).expect(201)).body;
     expect(Number(day1.commissionTotal)).toBe(2);
 
     await http.post(`/sales/invoices/${inv.id}/cancel`).set(bearer(admin)).send({ reason: 'customer refused' }).expect(201);
-    const day2 = (await closeDay(B, { date: today, declaredCash: '0', counts: [{ productId, quantity: '20' }] }).expect(201)).body;
+    const day2 = (await closeDay(B, { date: today, declaredCash: '0', counts: [{ productId, quantity: '20' }], differenceReason: 'test' }).expect(201)).body;
     expect(Number(day2.commissionTotal)).toBe(-2);
     const list = (await http.get(`/representatives/${B.repId}/commissions`).set(bearer(admin)).expect(200)).body;
     expect(Number(list.unpaidTotal)).toBe(0);

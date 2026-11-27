@@ -273,6 +273,10 @@ model Product {
   /// Weighted-average cost per base unit, maintained by the stock engine.
   avgCost        Decimal  @default(0) @db.Decimal(18, 4)
   reorderLevel   Decimal  @default(0) @db.Decimal(18, 4)
+  /// Safety stock: on hand below this is flagged in the low-stock report. 0 = not set.
+  minLevel       Decimal  @default(0) @db.Decimal(18, 4)
+  /// Ceiling: on hand above this is listed in the overstock report. 0 = not set.
+  maxLevel       Decimal  @default(0) @db.Decimal(18, 4)
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -282,6 +286,7 @@ model Product {
   units         ProductUnit[]
   customerPrices CustomerPrice[]
   balances      StockBalance[]
+  stockCountLines StockCountLine[]
   movements     StockMovement[]
   transferLines StockTransferLine[]
   salesLines    SalesInvoiceLine[]
@@ -290,6 +295,8 @@ model Product {
   @@index([categoryId])
   @@index([nameAr])
   @@index([nameEn])
+  purchaseOrderLines PurchaseOrderLine[]
+  salesOrderLines SalesOrderLine[]
 }
 
 /// Additional selling/buying units. factor = number of BASE units in one of this unit
@@ -353,6 +360,7 @@ model Customer {
   @@index([regionId])
   @@index([routeId])
   @@index([representativeId])
+  salesOrders SalesOrder[]
 }
 
 model Supplier {
@@ -370,6 +378,7 @@ model Supplier {
   purchaseInvoices PurchaseInvoice[]
 
   @@index([nameAr])
+  purchaseOrders PurchaseOrder[]
 }
 
 // ---------------------------------------------------------------
@@ -391,12 +400,15 @@ model Warehouse {
   isActive  Boolean       @default(true)
 
   balances      StockBalance[]
+  stockCounts   StockCount[]
   movements     StockMovement[]
   transfersFrom StockTransfer[] @relation("TransferFrom")
   transfersTo   StockTransfer[] @relation("TransferTo")
   salesInvoices SalesInvoice[]
   purchaseInvoices PurchaseInvoice[]
   vehicle Vehicle?
+  purchaseOrders PurchaseOrder[]
+  salesOrders SalesOrder[]
 }
 
 model StockBalance {
@@ -532,6 +544,8 @@ model SalesInvoice {
   idempotencyKey    String          @unique
   journalEntryId    String?
   representativeId  String?
+  /// Set when this invoice fulfils (part of) a sales order.
+  salesOrderId      String?
   note              String?
   cancelReason      String?
   cancelledAt       DateTime?
@@ -540,8 +554,11 @@ model SalesInvoice {
 
   customer  Customer?  @relation(fields: [customerId], references: [id])
   warehouse Warehouse  @relation(fields: [warehouseId], references: [id])
+  salesOrder SalesOrder? @relation(fields: [salesOrderId], references: [id])
+  creditOverride CreditOverride?
   lines     SalesInvoiceLine[]
 
+  @@index([salesOrderId])
   @@index([customerId, invoiceDate])
   @@index([invoiceDate])
   @@index([representativeId, invoiceDate])
@@ -583,6 +600,8 @@ model PurchaseInvoice {
   supplierRef    String?
   idempotencyKey String          @unique
   journalEntryId String?
+  /// Set when this invoice records the receipt of (part of) a purchase order.
+  purchaseOrderId String?
   note           String?
   cancelReason   String?
   cancelledAt    DateTime?
@@ -591,8 +610,10 @@ model PurchaseInvoice {
 
   supplier  Supplier  @relation(fields: [supplierId], references: [id])
   warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
   lines     PurchaseInvoiceLine[]
 
+  @@index([purchaseOrderId])
   @@index([supplierId, invoiceDate])
   @@index([invoiceDate])
 }
@@ -619,6 +640,23 @@ model PurchaseInvoiceLine {
 // Treasury, banks, cheques
 // ---------------------------------------------------------------
 
+/// Recorded approval when a credit sale exceeded the customer's limit (needs sales:override_credit_limit + a reason).
+model CreditOverride {
+  id             String   @id @default(uuid())
+  invoiceId      String   @unique
+  customerId     String
+  balanceBefore  Decimal  @db.Decimal(18, 2)
+  invoiceTotal   Decimal  @db.Decimal(18, 2)
+  creditLimit    Decimal  @db.Decimal(18, 2)
+  reason         String
+  approvedById   String
+  createdAt      DateTime @default(now())
+
+  invoice SalesInvoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([customerId, createdAt])
+}
+
 enum FinancialAccountKind {
   CASHBOX
   BANK
@@ -643,6 +681,30 @@ model FinancialAccount {
   cheques         Cheque[]
   reconciliations BankReconciliation[]
   representative  Representative?
+  cashboxClosings CashboxClosing[]
+}
+
+/// End-of-day cash count of a cash box against the ledger balance. Differences are posted and need a reason.
+/// At most one POSTED closing per (financialAccountId, closingDate), enforced under the account row lock.
+model CashboxClosing {
+  id                 String    @id @default(uuid())
+  number             Int       @unique @default(autoincrement())
+  financialAccountId String
+  closingDate        DateTime  @db.Date
+  systemBalance      Decimal   @db.Decimal(18, 2)
+  countedAmount      Decimal   @db.Decimal(18, 2)
+  difference         Decimal   @db.Decimal(18, 2)
+  reason             String?
+  status             DocStatus @default(POSTED)
+  journalEntryId     String?
+  cancelReason       String?
+  cancelledAt        DateTime?
+  createdById        String?
+  createdAt          DateTime  @default(now())
+
+  financialAccount FinancialAccount @relation(fields: [financialAccountId], references: [id])
+
+  @@index([financialAccountId, closingDate])
 }
 
 enum VoucherType {
@@ -918,6 +980,8 @@ model RepClosing {
   loadedValue          Decimal  @db.Decimal(18, 2)
   stockDifferenceValue Decimal  @db.Decimal(18, 2) // counted - expected valued at cost: negative = shortage
   commissionTotal      Decimal  @db.Decimal(18, 2)
+  /// Mandatory whenever the cash or stock count differs from the system (documented shortage/overage).
+  differenceReason     String?
   createdById          String?
   createdAt            DateTime @default(now())
 
@@ -1109,4 +1173,147 @@ model SyncOperation {
   receivedAt      DateTime   @default(now())
 
   @@index([userId, receivedAt])
+}
+
+enum StockCountStatus {
+  DRAFT
+  APPROVED
+  CANCELLED
+}
+
+/// A physical inventory count (جرد). Approving it books the differences as stock adjustments.
+model StockCount {
+  id           String           @id @default(uuid())
+  number       Int              @unique @default(autoincrement())
+  warehouseId  String
+  countDate    DateTime         @db.Date
+  status       StockCountStatus @default(DRAFT)
+  note         String?
+  createdById  String?
+  approvedById String?
+  approvedAt   DateTime?
+  createdAt    DateTime         @default(now())
+
+  warehouse Warehouse        @relation(fields: [warehouseId], references: [id])
+  lines     StockCountLine[]
+
+  @@index([warehouseId, status])
+}
+
+model StockCountLine {
+  id           String   @id @default(uuid())
+  stockCountId String
+  productId    String
+  /// Snapshot of the system balance (base units) when the line was added.
+  systemQty    Decimal  @db.Decimal(18, 4)
+  /// Null until the line has been physically counted; uncounted lines are ignored on approval.
+  countedQty   Decimal? @db.Decimal(18, 4)
+
+  stockCount StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id])
+
+  @@unique([stockCountId, productId])
+}
+
+enum PurchaseOrderStatus {
+  OPEN
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+/// A commitment to buy. It never moves stock or money: goods arrive through a purchase invoice that
+/// references the order, and the received quantity is derived from those posted invoices.
+model PurchaseOrder {
+  id           String              @id @default(uuid())
+  number       Int                 @unique @default(autoincrement())
+  supplierId   String
+  warehouseId  String
+  orderDate    DateTime            @db.Date
+  expectedDate DateTime?           @db.Date
+  status       PurchaseOrderStatus @default(OPEN)
+  subtotal     Decimal             @db.Decimal(18, 2)
+  note         String?
+  cancelReason String?
+  createdById  String?
+  createdAt    DateTime            @default(now())
+
+  supplier  Supplier            @relation(fields: [supplierId], references: [id])
+  warehouse Warehouse           @relation(fields: [warehouseId], references: [id])
+  lines     PurchaseOrderLine[]
+  invoices  PurchaseInvoice[]
+
+  @@index([supplierId, status])
+}
+
+model PurchaseOrderLine {
+  id              String  @id @default(uuid())
+  purchaseOrderId String
+  productId       String
+  unitId          String?
+  enteredQty      Decimal @db.Decimal(18, 4)
+  baseQty         Decimal @db.Decimal(18, 4)
+  unitPrice       Decimal @db.Decimal(18, 4)
+  lineNet         Decimal @db.Decimal(18, 2)
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id])
+
+  @@index([purchaseOrderId])
+  @@index([productId])
+}
+
+enum SalesOrderKind {
+  QUOTATION
+  ORDER
+}
+
+enum SalesOrderStatus {
+  OPEN
+  PARTIALLY_INVOICED
+  INVOICED
+  CANCELLED
+}
+
+/// A quotation (عرض سعر) or sales order (أمر بيع). It never moves stock or money: goods leave through a
+/// sales invoice that references the ORDER, and the invoiced quantity is derived from those posted invoices.
+model SalesOrder {
+  id          String           @id @default(uuid())
+  number      Int              @unique @default(autoincrement())
+  kind        SalesOrderKind   @default(QUOTATION)
+  customerId  String
+  warehouseId String
+  docDate     DateTime         @db.Date
+  validUntil  DateTime?        @db.Date
+  status      SalesOrderStatus @default(OPEN)
+  subtotal    Decimal          @db.Decimal(18, 2)
+  note        String?
+  cancelReason String?
+  createdById String?
+  createdAt   DateTime         @default(now())
+
+  customer  Customer         @relation(fields: [customerId], references: [id])
+  warehouse Warehouse        @relation(fields: [warehouseId], references: [id])
+  lines     SalesOrderLine[]
+  invoices  SalesInvoice[]
+
+  @@index([customerId, status])
+}
+
+model SalesOrderLine {
+  id           String  @id @default(uuid())
+  salesOrderId String
+  productId    String
+  unitId       String?
+  enteredQty   Decimal @db.Decimal(18, 4)
+  baseQty      Decimal @db.Decimal(18, 4)
+  unitPrice    Decimal @db.Decimal(18, 4)
+  discount     Decimal @default(0) @db.Decimal(18, 2)
+  lineNet      Decimal @db.Decimal(18, 2)
+
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id])
+
+  @@index([salesOrderId])
+  @@index([productId])
 }

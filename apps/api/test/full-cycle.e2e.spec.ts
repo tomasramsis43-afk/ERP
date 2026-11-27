@@ -87,7 +87,7 @@ d('full business cycle and cross-module invariants (requires seeded PostgreSQL)'
     const preview = (await get(`/representatives/${repId}/closing-preview?date=${today}`, repToken).expect(200)).body;
     const expectedQty = n(preview.lines[0].expectedQty);
     expect(expectedQty).toBe(35); // 50 loaded − 10 − 5
-    await post(`/representatives/${repId}/close-day`, { date: today, declaredCash: preview.expectedCash, counts: [{ productId, quantity: String(expectedQty - 1) }] }, repToken).expect(201);
+    await post(`/representatives/${repId}/close-day`, { date: today, declaredCash: preview.expectedCash, counts: [{ productId, quantity: String(expectedQty - 1) }], differenceReason: 'cycle test shortage' }, repToken).expect(201);
     expect(n((await get(`/representatives/${repId}`).expect(200)).body.custodyBalance)).toBe(0);
   });
 

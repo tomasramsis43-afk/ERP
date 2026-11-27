@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Product" ADD COLUMN     "maxLevel" DECIMAL(18,4) NOT NULL DEFAULT 0,
+ADD COLUMN     "minLevel" DECIMAL(18,4) NOT NULL DEFAULT 0;

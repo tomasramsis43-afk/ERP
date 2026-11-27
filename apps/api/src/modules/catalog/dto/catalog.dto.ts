@@ -83,6 +83,14 @@ export class CreateProductDto {
   @IsOptional() @Matches(PRICE)
   reorderLevel?: string;
 
+  /** Safety stock (0 = not set). */
+  @IsOptional() @Matches(PRICE)
+  minLevel?: string;
+
+  /** Stock ceiling (0 = not set). When set it must be at least the minimum and the reorder level. */
+  @IsOptional() @Matches(PRICE)
+  maxLevel?: string;
+
   @IsOptional() @IsArray() @ArrayMaxSize(10)
   @ValidateNested({ each: true }) @Type(() => ProductUnitDto)
   units?: ProductUnitDto[];
@@ -115,6 +123,12 @@ export class UpdateProductDto {
 
   @IsOptional() @Matches(PRICE)
   reorderLevel?: string;
+
+  @IsOptional() @Matches(PRICE)
+  minLevel?: string;
+
+  @IsOptional() @Matches(PRICE)
+  maxLevel?: string;
 
   @IsOptional() @IsBoolean()
   isActive?: boolean;

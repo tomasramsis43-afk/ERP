@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useApp, useToast } from '@/components/Providers';
 import {
   Badge,
@@ -124,6 +125,7 @@ export function InvoicePage({ side }: { side: Side }) {
         <Button icon="plus" onClick={() => setCreating('SALE')}>
           {isSales ? tr('فاتورة بيع', 'Sales invoice') : tr('فاتورة شراء', 'Purchase invoice')}
         </Button>
+        <Link href={`/${side}/orders`} className="btn ghost">{isSales ? tr('عروض وأوامر البيع', 'Quotes & orders') : tr('أوامر الشراء', 'Purchase orders')}</Link>
         <Button variant="ghost" icon="transfer" onClick={() => setCreating('RETURN')}>
           {tr('مرتجع', 'Return')}
         </Button>
@@ -288,6 +290,7 @@ function InvoiceForm({
   const [priceList, setPriceList] = useState<'RETAIL' | 'WHOLESALE'>('RETAIL');
   const [representativeId, setRepresentativeId] = useState('');
   const [note, setNote] = useState('');
+  const [creditOverrideReason, setCreditOverrideReason] = useState('');
   const [supplierRef, setSupplierRef] = useState('');
   const [shippingCost, setShippingCost] = useState('');
   const [originalInvoiceId, setOriginalInvoiceId] = useState('');
@@ -384,6 +387,7 @@ function InvoiceForm({
         paymentKind,
         warehouseId,
         note: note || undefined,
+        ...(isSales && !isReturn && paymentKind === 'CREDIT' && creditOverrideReason.trim() ? { creditOverrideReason: creditOverrideReason.trim() } : {}),
         lines: valid.map((l) => ({
           productId: l.product!.id,
           quantity: l.qty,
@@ -490,6 +494,11 @@ function InvoiceForm({
               <Field label={tr('مرجع المستند', 'Reference')} className="col-3">
                 <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={tr('ملاحظات…', 'Notes…')} />
               </Field>
+              {!isReturn && paymentKind === 'CREDIT' ? (
+                <Field label={tr('سبب تجاوز حد الائتمان (إن لزم)', 'Credit-limit override reason (if needed)')} className="col-6">
+                  <Input value={creditOverrideReason} onChange={(e) => setCreditOverrideReason(e.target.value)} placeholder={tr('يُطلب فقط عند تجاوز الحد وبصلاحية الاستثناء', 'Only needed when the limit is exceeded, with the override permission')} />
+                </Field>
+              ) : null}
             </>
           ) : (
             <>

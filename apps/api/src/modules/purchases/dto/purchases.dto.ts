@@ -57,6 +57,31 @@ export class CreatePurchaseInvoiceDto {
   @IsOptional() @IsString() @MaxLength(100)
   supplierRef?: string;
 
+  /** Receive goods against this purchase order (purchase invoices only). */
+  @IsOptional() @IsUUID()
+  purchaseOrderId?: string;
+
+  @IsOptional() @IsString() @MaxLength(500)
+  note?: string;
+
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(300)
+  @ValidateNested({ each: true }) @Type(() => PurchaseLineDto)
+  lines!: PurchaseLineDto[];
+}
+
+export class CreatePurchaseOrderDto {
+  @IsISO8601({ strict: true })
+  orderDate!: string;
+
+  @IsOptional() @IsISO8601({ strict: true })
+  expectedDate?: string;
+
+  @IsUUID()
+  supplierId!: string;
+
+  @IsUUID()
+  warehouseId!: string;
+
   @IsOptional() @IsString() @MaxLength(500)
   note?: string;
 
