@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../../common/decorators/auth.decorators';
 import { AgingReportService } from './aging-report.service';
 import { DashboardService } from './dashboard.service';
+import { InventoryReportsService } from './inventory-reports.service';
 import { Lang } from './export-tables';
 import { renderPdf, renderXlsx } from './exporters';
 import { ProfitabilityService } from './profitability.service';
@@ -21,6 +22,7 @@ export class ReportsController {
     private readonly aging: AgingReportService,
     private readonly tables: ReportTablesService,
     private readonly profitability: ProfitabilityService,
+    private readonly inventoryReports: InventoryReportsService,
   ) {}
 
   @Get('dashboard')
@@ -69,6 +71,25 @@ export class ReportsController {
     }
     this.need(from, to);
     return this.profitability.report(dimension, from, to);
+  }
+
+  /** Stock valuation per warehouse and product, reconciled with the inventory ledger accounts. */
+  @Get('inventory/valuation')
+  @RequirePermissions('reports:view')
+  inventoryValuation(@Query('warehouseId') warehouseId?: string) {
+    return this.inventoryReports.valuation(warehouseId);
+  }
+
+  @Get('inventory/low-stock')
+  @RequirePermissions('reports:view')
+  lowStock(@Query('warehouseId') warehouseId?: string) {
+    return this.inventoryReports.lowStock(warehouseId);
+  }
+
+  @Get('inventory/slow-moving')
+  @RequirePermissions('reports:view')
+  slowMoving(@Query('days') days?: string) {
+    return this.inventoryReports.slowMoving(days ? Number(days) : 90);
   }
 
   /** `format` is xlsx (default) or pdf; `lang` is ar or en. */
