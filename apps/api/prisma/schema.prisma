@@ -291,6 +291,7 @@ model Product {
   @@index([categoryId])
   @@index([nameAr])
   @@index([nameEn])
+  purchaseOrderLines PurchaseOrderLine[]
 }
 
 /// Additional selling/buying units. factor = number of BASE units in one of this unit
@@ -368,6 +369,7 @@ model Supplier {
   purchaseInvoices PurchaseInvoice[]
 
   @@index([nameAr])
+  purchaseOrders PurchaseOrder[]
 }
 
 // ---------------------------------------------------------------
@@ -396,6 +398,7 @@ model Warehouse {
   salesInvoices SalesInvoice[]
   purchaseInvoices PurchaseInvoice[]
   vehicle Vehicle?
+  purchaseOrders PurchaseOrder[]
 }
 
 model StockBalance {
@@ -582,6 +585,8 @@ model PurchaseInvoice {
   supplierRef    String?
   idempotencyKey String          @unique
   journalEntryId String?
+  /// Set when this invoice records the receipt of (part of) a purchase order.
+  purchaseOrderId String?
   note           String?
   cancelReason   String?
   cancelledAt    DateTime?
@@ -590,8 +595,10 @@ model PurchaseInvoice {
 
   supplier  Supplier  @relation(fields: [supplierId], references: [id])
   warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
   lines     PurchaseInvoiceLine[]
 
+  @@index([purchaseOrderId])
   @@index([supplierId, invoiceDate])
   @@index([invoiceDate])
 }
@@ -1118,4 +1125,52 @@ model StockCountLine {
   product    Product    @relation(fields: [productId], references: [id])
 
   @@unique([stockCountId, productId])
+}
+
+enum PurchaseOrderStatus {
+  OPEN
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+/// A commitment to buy. It never moves stock or money: goods arrive through a purchase invoice that
+/// references the order, and the received quantity is derived from those posted invoices.
+model PurchaseOrder {
+  id           String              @id @default(uuid())
+  number       Int                 @unique @default(autoincrement())
+  supplierId   String
+  warehouseId  String
+  orderDate    DateTime            @db.Date
+  expectedDate DateTime?           @db.Date
+  status       PurchaseOrderStatus @default(OPEN)
+  subtotal     Decimal             @db.Decimal(18, 2)
+  note         String?
+  cancelReason String?
+  createdById  String?
+  createdAt    DateTime            @default(now())
+
+  supplier  Supplier            @relation(fields: [supplierId], references: [id])
+  warehouse Warehouse           @relation(fields: [warehouseId], references: [id])
+  lines     PurchaseOrderLine[]
+  invoices  PurchaseInvoice[]
+
+  @@index([supplierId, status])
+}
+
+model PurchaseOrderLine {
+  id              String  @id @default(uuid())
+  purchaseOrderId String
+  productId       String
+  unitId          String?
+  enteredQty      Decimal @db.Decimal(18, 4)
+  baseQty         Decimal @db.Decimal(18, 4)
+  unitPrice       Decimal @db.Decimal(18, 4)
+  lineNet         Decimal @db.Decimal(18, 2)
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id])
+
+  @@index([purchaseOrderId])
+  @@index([productId])
 }

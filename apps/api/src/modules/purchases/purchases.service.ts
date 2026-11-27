@@ -12,6 +12,7 @@ import { AuditService } from '../audit/audit.service';
 import { UnitConversionService } from '../catalog/unit-conversion.service';
 import { StockService } from '../inventory/stock.service';
 import { CreatePurchaseInvoiceDto } from './dto/purchases.dto';
+import { PurchaseOrdersService } from './purchase-orders.service';
 
 interface PricedLine {
   productId: string;
@@ -34,6 +35,7 @@ export class PurchasesService {
     private readonly accounts: SystemAccountsService,
     private readonly vat: VatService,
     private readonly audit: AuditService,
+    private readonly orders: PurchaseOrdersService,
   ) {}
 
   createInvoice(dto: CreatePurchaseInvoiceDto, user: AuthUser) {
@@ -87,6 +89,7 @@ export class PurchasesService {
         const unitPrice = dec(l.unitPrice);
         priced.push({ productId: l.productId, unitId: l.unitId, enteredQty, baseQty, unitPrice, lineNet: roundMoney(enteredQty.times(unitPrice)) });
       }
+      if (dto.purchaseOrderId) await this.checkAgainstOrder(tx, kind, dto, supplier.id, warehouse.id, priced);
       const subtotal = priced.reduce((a, l) => a.plus(l.lineNet), new Decimal(0));
       if (subtotal.lte(0)) throw new BadRequestException('Document total must be greater than zero');
       const vatTotal = this.vat.compute(subtotal, await this.vat.config(tx));
@@ -105,6 +108,7 @@ export class PurchasesService {
           total: total.toFixed(2),
           supplierRef: dto.supplierRef,
           idempotencyKey: dto.idempotencyKey,
+          purchaseOrderId: dto.purchaseOrderId,
           note: dto.note,
           createdById: user.id,
         },
@@ -161,6 +165,7 @@ export class PurchasesService {
         });
       }
       await tx.purchaseInvoiceLine.createMany({ data: rows });
+      if (dto.purchaseOrderId) await this.orders.refreshStatus(tx, dto.purchaseOrderId);
 
       const entry = await this.postJournal(tx, kind, invoice.id, invoice.number, date, dto, {
         subtotal,
@@ -184,6 +189,26 @@ export class PurchasesService {
       });
     }
     return result.invoice;
+  }
+
+  /** A receipt must match its order (supplier, warehouse) and never exceed what is still outstanding. */
+  private async checkAgainstOrder(tx: Tx, kind: PurchaseDocKind, dto: CreatePurchaseInvoiceDto, supplierId: string, warehouseId: string, priced: PricedLine[]) {
+    const orderId = dto.purchaseOrderId!;
+    if (kind !== 'PURCHASE') throw new BadRequestException('A purchase return cannot reference a purchase order');
+    await this.orders.lock(tx, orderId);
+    const order = await tx.purchaseOrder.findUnique({ where: { id: orderId } });
+    if (!order) throw new BadRequestException('Purchase order not found');
+    if (order.status === 'CANCELLED' || order.status === 'RECEIVED') throw new ConflictException('Purchase order is not open for receiving');
+    if (order.supplierId !== supplierId) throw new BadRequestException('Supplier does not match the purchase order');
+    if (order.warehouseId !== warehouseId) throw new BadRequestException('Warehouse does not match the purchase order');
+    const remaining = new Map((await this.orders.quantities(tx, orderId)).map((q) => [q.productId, q.remaining]));
+    const incoming = new Map<string, Decimal>();
+    for (const l of priced) incoming.set(l.productId, (incoming.get(l.productId) ?? new Decimal(0)).plus(l.baseQty));
+    for (const [productId, qty] of incoming) {
+      const left = remaining.get(productId);
+      if (left === undefined) throw new BadRequestException('Product is not on the purchase order');
+      if (qty.gt(left)) throw new BadRequestException(`Received quantity exceeds the outstanding order quantity (remaining ${left.toFixed(4)})`);
+    }
   }
 
   async cancel(id: string, reason: string, user: AuthUser) {
@@ -221,11 +246,17 @@ export class PurchasesService {
           tx,
         );
       }
-      return tx.purchaseInvoice.update({
+      const cancelled = await tx.purchaseInvoice.update({
         where: { id },
         data: { status: 'CANCELLED', cancelReason: reason, cancelledAt: new Date() },
         include: INCLUDE,
       });
+      // The goods are no longer received: reopen the order's remaining quantities.
+      if (inv.purchaseOrderId) {
+        await this.orders.lock(tx, inv.purchaseOrderId);
+        await this.orders.refreshStatus(tx, inv.purchaseOrderId);
+      }
+      return cancelled;
     });
     await this.audit.record({
       userId: user.id,

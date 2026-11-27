@@ -3,14 +3,42 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthUser, CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators';
 import { parsePage } from '../../common/utils/pagination';
 import { CancelDocumentDto } from '../sales/dto/sales.dto';
-import { CreatePurchaseInvoiceDto } from './dto/purchases.dto';
+import { CreatePurchaseInvoiceDto, CreatePurchaseOrderDto } from './dto/purchases.dto';
+import { PurchaseOrdersService } from './purchase-orders.service';
 import { PurchasesService } from './purchases.service';
 
 @ApiTags('purchases')
 @ApiBearerAuth()
 @Controller('purchases')
 export class PurchasesController {
-  constructor(private readonly purchases: PurchasesService) {}
+  constructor(
+    private readonly purchases: PurchasesService,
+    private readonly orders: PurchaseOrdersService,
+  ) {}
+
+  @Get('orders')
+  @RequirePermissions('purchases:view')
+  listOrders(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('supplierId') supplierId?: string, @Query('status') status?: string) {
+    return this.orders.list(parsePage(page, pageSize), { supplierId, status });
+  }
+
+  @Get('orders/:id')
+  @RequirePermissions('purchases:view')
+  getOrder(@Param('id', ParseUUIDPipe) id: string) {
+    return this.orders.get(id);
+  }
+
+  @Post('orders')
+  @RequirePermissions('purchases:create')
+  createOrder(@Body() dto: CreatePurchaseOrderDto, @CurrentUser() user: AuthUser) {
+    return this.orders.create(dto, user);
+  }
+
+  @Post('orders/:id/cancel')
+  @RequirePermissions('purchases:cancel')
+  cancelOrder(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CancelDocumentDto, @CurrentUser() user: AuthUser) {
+    return this.orders.cancel(id, dto.reason, user);
+  }
 
   @Get('invoices')
   @RequirePermissions('purchases:view')
