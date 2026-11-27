@@ -304,6 +304,16 @@ export class SalesService {
     if (dto.lines.some((l) => l.discount && Number(l.discount) > 0) && !user.permissions.includes('sales:discount')) {
       throw new ForbiddenException('Discounts require sales:discount');
     }
+    // Large discounts (above the configured threshold of the line gross) need approval.
+    const threshold = 0.05;
+    const needsApproval = dto.lines.some((l) => {
+      const gross = Number(l.quantity) * Number(l.unitPrice ?? 0);
+      const disc = Number(l.discount ?? 0);
+      return gross > 0 && disc / gross > threshold;
+    });
+    if (needsApproval && !user.permissions.includes('sales:approve_discount')) {
+      throw new ForbiddenException('Discounts above the approval threshold require sales:approve_discount');
+    }
   }
 
   private async loadOriginal(tx: Tx, dto: CreateSalesReturnDto) {
