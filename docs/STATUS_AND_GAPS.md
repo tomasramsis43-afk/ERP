@@ -2,29 +2,39 @@
 
 Compared with the master specification. "Missing" means no schema/API for it exists in the repository.
 
-## Added in this pass
+## Added in recent passes
 - Inventory valuation report (quantity x weighted-average cost per warehouse/product) reconciled against the INVENTORY and VEHICLE_STOCK ledger accounts: `GET /reports/inventory/valuation`.
 - Low-stock report against `reorderLevel`: `GET /reports/inventory/low-stock`.
 - Slow-moving report: `GET /reports/inventory/slow-moving?days=90`.
 - Web: Reports > Inventory tab, Commission rules page, working export-language selector.
+- Sales orders, purchase orders, quotations: API + web (migrations 0004, 0005).
+- Stock count sessions (jard): API + web (migration 0003).
+- Route visit log: API + web (migration 0002).
+- Year-end closing entries: API `/accounting/year-end/:periodId/(preview|close)` and web page.
+- Cash-box day closing and physical-cash reconciliation (migration 0006).
+- Credit-limit override with recorded approval (migration 0007).
+- Product min/max levels (migration 0008).
+- Discount approval: `sales:approve_discount` permission; discounts above 5% require approval.
+- Account lockout after 5 failed login attempts (15 min).
+- Seed always syncs access control so new permissions reach existing deployments.
+- Manual journal lines support `partyType`/`partyId` (opening balances for customers/suppliers).
+- VAT declaration report: `GET /reports/vat?from=&to=`.
 
 ## Missing or partial
 | Area | State |
 |---|---|
-| Quotations, sales orders | Missing |
-| Purchase requests, purchase orders, goods receipt | Missing (invoices only) |
-| Stock count sessions (jard) | Missing (adjustments exist, no count/approval workflow) |
 | FIFO valuation | Missing (weighted average only; no company setting) |
 | Expiry dates / batches | Missing |
-| Product min/max levels | Only `reorderLevel` |
-| Route visit log (visited / not visited) | Missing |
-| Year-end closing entries | Done: API `/accounting/year-end/:periodId/(preview|close)` and web page. Opening balances for a new company are still manual journals / account opening balances |
-| Cash-box day closing and physical-cash reconciliation | Partial (bank reconciliation and rep day closing exist) |
-| Credit-limit override with recorded approval; negative-stock override | Missing (hard blocks only) |
+| Negative-stock override | Missing (hard blocks only) |
+| Opening balances workflow | Partial (manual journals + tagged party lines supported; dedicated UI pending) |
+| Recurring journal entries | Missing |
+| Branch (multi-branch) | Missing (no Branch model) |
+| Arabic PDF export | Not supported (Excel works; English PDF works) |
+| Redis-backed throttling | Not implemented |
 | Mobile: returns, day closing, day summary, receipts, van stock view | Missing screens (sale, collection, customers, sync exist) |
 | Web: customer/supplier/representative detail screens for custody and visits | Partial |
-| Redis-backed throttling | Not implemented |
-| Arabic PDF export | Not supported (Excel works) |
+| Mobile real-device test pass | Not done |
+| Web not exercised in a browser for document creation | Partially done (dialogs exist) |
 
-## Verification limits of this pass
-Type-checks pass for API and web; unit tests pass for the accounting engine (6), web helpers (6) and mobile (20). The database test suites were **not run**: the sandbox could not download Prisma's query engine. They run in CI.
+## Verification limits
+Type-checks pass for API and web; unit tests pass for the accounting engine (6), web helpers (6) and mobile (20). The database test suites run in CI (PostgreSQL 16).
