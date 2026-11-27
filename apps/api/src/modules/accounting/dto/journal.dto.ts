@@ -27,6 +27,15 @@ export class JournalLineDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  /** Subledger link for party statements/aging (opening balances, manual adjustments). */
+  @IsOptional()
+  @IsIn(['CUSTOMER', 'SUPPLIER'])
+  partyType?: 'CUSTOMER' | 'SUPPLIER';
+
+  @IsOptional()
+  @IsUUID()
+  partyId?: string;
 }
 
 export class CreateJournalDto {
