@@ -1,10 +1,8 @@
 -- Applied idempotently by prisma/seed.ts (one statement per marker line below).
 
--- Stock can never go negative at database level (the engine also checks, this is the safety net).
-ALTER TABLE "StockBalance" DROP CONSTRAINT IF EXISTS chk_stock_non_negative;
--- @@
-ALTER TABLE "StockBalance" ADD CONSTRAINT chk_stock_non_negative CHECK ("quantity" >= 0);
--- @@
+-- Negative stock is an approval workflow (inventory:override_negative + recorded reason).
+-- The database CHECK was removed in migration 0012; the guarded UPDATE in StockService
+-- still blocks every unapproved oversell.
 
 -- Unit conversion factors must be positive.
 ALTER TABLE "ProductUnit" DROP CONSTRAINT IF EXISTS chk_unit_factor_positive;
