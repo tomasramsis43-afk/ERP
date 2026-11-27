@@ -70,7 +70,7 @@ export class SalesService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.salesInvoice.findUnique({ where: { idempotencyKey: dto.idempotencyKey }, include: INCLUDE });
-      if (existing) return { invoice: existing, created: false };
+      if (existing) return { invoice: existing, created: false, creditOverride: null as Record<string, string> | null };
 
       const warehouse = await tx.warehouse.findUnique({ where: { id: dto.warehouseId } });
       if (!warehouse || !warehouse.isActive) throw new BadRequestException('Warehouse not found or inactive');
@@ -92,12 +92,27 @@ export class SalesService {
       const total = net.plus(vatTotal);
       if (total.lte(0)) throw new BadRequestException('Document total must be greater than zero');
 
+      let creditOverride: Record<string, string> | null = null;
       if (kind === 'SALE' && dto.paymentKind === 'CREDIT' && customer) {
         const balance = await this.parties.balance('CUSTOMER', customer.id, tx);
-        if (balance.plus(total).gt(customer.creditLimit.toString()) && !user.permissions.includes('sales:override_credit_limit')) {
-          throw new BadRequestException(
-            `Credit limit exceeded: balance ${balance.toFixed(2)} + ${total.toFixed(2)} > limit ${customer.creditLimit.toString()}`,
-          );
+        if (balance.plus(total).gt(customer.creditLimit.toString())) {
+          if (!user.permissions.includes('sales:override_credit_limit')) {
+            throw new BadRequestException(
+              `Credit limit exceeded: balance ${balance.toFixed(2)} + ${total.toFixed(2)} > limit ${customer.creditLimit.toString()}`,
+            );
+          }
+          // An authorised override is an approval: it needs a reason and is recorded in the audit log.
+          const reason = dto.creditOverrideReason?.trim();
+          if (!reason) {
+            throw new BadRequestException('A reason (creditOverrideReason) is required to exceed the credit limit');
+          }
+          creditOverride = {
+            customerId: customer.id,
+            balance: balance.toFixed(2),
+            documentTotal: total.toFixed(2),
+            creditLimit: customer.creditLimit.toString(),
+            reason,
+          };
         }
       }
 
@@ -154,7 +169,7 @@ export class SalesService {
         data: { costTotal: cost.toFixed(2), journalEntryId: entry.id },
         include: INCLUDE,
       });
-      return { invoice: saved, created: true };
+      return { invoice: saved, created: true, creditOverride };
     });
 
     if (result.created) {
@@ -165,6 +180,16 @@ export class SalesService {
         entityId: result.invoice.id,
         newData: { number: result.invoice.number, total: result.invoice.total.toString(), paymentKind: dto.paymentKind },
       });
+      if (result.creditOverride) {
+        await this.audit.record({
+          userId: user.id,
+          action: 'CREDIT_LIMIT_OVERRIDE',
+          entity: 'SalesInvoice',
+          entityId: result.invoice.id,
+          newData: { number: result.invoice.number, ...result.creditOverride },
+          reason: result.creditOverride.reason,
+        });
+      }
     }
     return result.invoice;
   }
