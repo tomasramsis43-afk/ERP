@@ -48,7 +48,7 @@ export class AuthService {
     const permissions = [
       ...new Set(user.roles.flatMap((ur) => ur.role.permissions.map((rp) => rp.permission.code))),
     ];
-    return { id: user.id, email: user.email, roles, permissions };
+    return { id: user.id, email: user.email, roles, permissions, branchId: user.branchId ?? null };
   }
 
   async login(email: string, password: string, client: ClientInfo): Promise<TokenPair> {
