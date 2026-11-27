@@ -4,9 +4,10 @@ import React, { useMemo, useState } from 'react';
 import { useApp, useConfirm, useToast } from '@/components/Providers';
 import { Badge, Button, DataTable, DateText, DetailGrid, EmptyState, ErrorNote, Field, IconButton, Input, Loading, Modal, Money, PageHeader, Pagination, Qty, Select, SummaryStrip, Tabs, Textarea } from '@/components/ui';
 import { ResourcePage } from '@/components/ResourcePage';
-import { useApi, useOptions, usePaged } from '@/lib/hooks';
+import { useApi, useOptions, usePaged, useUrlParam } from '@/lib/hooks';
 import { get, post } from '@/lib/api';
 import { queryString, today } from '@/lib/format';
+import { VisitsTab } from '@/components/VisitsTab';
 
 interface Rep { id: string; code: string; nameAr: string; nameEn: string | null; isActive: boolean; custodyBalance?: string; route?: { nameAr: string } | null; vehicle?: { plateNumber: string } | null }
 interface Rule { id: string; representativeId: string | null; basis: 'SALES' | 'COLLECTIONS' | 'MARGIN'; ratePercent: string; productId: string | null; customerId: string | null; geoAreaId: string | null; createdAt: string }
@@ -36,6 +37,7 @@ export default function RepresentativesPage() {
 
 function RepsList() {
   const { tr, lang } = useApp();
+  const initialDetailId = useUrlParam('id');
   const routes = useOptions<{ id: string; nameAr: string }>('routes?pageSize=100', (r) => ({ value: r.id, label: r.nameAr }));
   const vehicles = useOptions<{ id: string; plateNumber: string }>('vehicles?pageSize=100', (v) => ({ value: v.id, label: v.plateNumber }));
   const users = useOptions<{ id: string; fullName: string; email: string }>('users?pageSize=100', (u) => ({ value: u.id, label: `${u.fullName} (${u.email})` }));
@@ -65,6 +67,7 @@ function RepsList() {
         { name: 'isActive', label: tr('نشط', 'Active'), type: 'checkbox', hideInCreate: true, col: 'col-4' },
       ]}
       createLabel={tr('مندوب جديد', 'New representative')}
+      initialDetailId={initialDetailId}
       renderDetail={(r) => <RepDetail rep={r} />}
     />
   );
@@ -72,7 +75,7 @@ function RepsList() {
 
 function RepDetail({ rep }: { rep: Rep }) {
   const { tr, lang } = useApp();
-  const [tab, setTab] = useState<'info' | 'closing' | 'history' | 'commissions'>('info');
+  const [tab, setTab] = useState<'info' | 'closing' | 'history' | 'commissions' | 'visits'>('info');
   const { data } = useApi<any>(`representatives/${rep.id}`);
   const d = data ?? rep;
   return (
@@ -82,6 +85,7 @@ function RepDetail({ rep }: { rep: Rep }) {
         { id: 'closing', label: tr('إقفال اليوم', 'Close day') },
         { id: 'history', label: tr('سجل الإقفالات', 'Closings') },
         { id: 'commissions', label: tr('العمولات', 'Commissions') },
+        { id: 'visits', label: tr('الزيارات', 'Visits') },
       ]} />
       <div className="mt-16">
         {tab === 'info' ? (
@@ -116,6 +120,7 @@ function RepDetail({ rep }: { rep: Rep }) {
         {tab === 'closing' ? <ClosingTab rep={rep} onClosed={() => setTab('history')} /> : null}
         {tab === 'history' ? <HistoryTab repId={rep.id} /> : null}
         {tab === 'commissions' ? <CommissionsTab repId={rep.id} /> : null}
+        {tab === 'visits' ? <VisitsTab representativeId={rep.id} /> : null}
       </div>
     </div>
   );
