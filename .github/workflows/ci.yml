@@ -46,7 +46,16 @@ jobs:
         working-directory: apps/api
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
+      - name: Tests (failures are echoed as annotations)
+        shell: bash
+        run: |
+          set +e
+          npm test 2>&1 | tee /tmp/test-out.txt
+          code=${PIPESTATUS[0]}
+          if [ "$code" != "0" ]; then
+            grep -E "●.*›|error TS|Expected|Received|expected|Error:|Exceeded|at .*\.e2e\.spec\.ts" /tmp/test-out.txt | head -25 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
+          fi
+          exit $code
       - name: Smoke test the real server (global prefix, security headers, login)
         working-directory: apps/api
         env:
