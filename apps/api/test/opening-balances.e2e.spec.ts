@@ -54,7 +54,7 @@ d('opening balances (end to end, requires seeded PostgreSQL)', () => {
     };
     const entry = await http.post('/accounting/opening-balances').set(auth()).send(body).expect(201);
     expect(entry.body.status).toBe('POSTED');
-    expect(entry.body.lines).toHaveLength(3); // two parties + one equity balancing line
+    expect(entry.body.lines).toHaveLength(4); // two parties + paired equity balancing lines
 
     const replay = await http.post('/accounting/opening-balances').set(auth()).send(body).expect(201);
     expect(replay.body.id).toBe(entry.body.id);
