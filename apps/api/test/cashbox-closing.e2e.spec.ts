@@ -38,8 +38,11 @@ d('cash box day closing (end to end, requires seeded PostgreSQL)', () => {
     rep = (await http.post('/auth/login').send({ email, password: 'long-password-123' }).expect(200)).body.accessToken;
 
     const s = uid();
-    boxId = (await http.post('/financial-accounts').set(bearer(admin)).send({ code: `CB-${s}`, kind: 'CASHBOX', nameAr: 'خزينة', nameEn: 'Closing box', openingBalance: '1000' }).expect(201)).body.id;
-    bankId = (await http.post('/financial-accounts').set(bearer(admin)).send({ code: `CK-${s}`, kind: 'BANK', nameAr: 'بنك', nameEn: 'Bank', bankName: 'Test', openingBalance: '100' }).expect(201)).body.id;
+    // The opening balance is a journal entry dated `openingDate` (today when omitted). Date it before the
+    // first closing day, otherwise the ledger balance as of "yesterday" is correctly 0.
+    const openedOn = iso(-2);
+    boxId = (await http.post('/financial-accounts').set(bearer(admin)).send({ code: `CB-${s}`, kind: 'CASHBOX', nameAr: 'خزينة', nameEn: 'Closing box', openingBalance: '1000', openingDate: openedOn }).expect(201)).body.id;
+    bankId = (await http.post('/financial-accounts').set(bearer(admin)).send({ code: `CK-${s}`, kind: 'BANK', nameAr: 'بنك', nameEn: 'Bank', bankName: 'Test', openingBalance: '100', openingDate: openedOn }).expect(201)).body.id;
     const accounts = (await http.get('/accounting/accounts').set(bearer(admin)).expect(200)).body as { code: string; id: string }[];
     expenseId = accounts.find((a) => a.code === '57')!.id;
   });
