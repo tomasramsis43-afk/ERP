@@ -104,6 +104,7 @@ export default function InventoryPage() {
         <Button icon="transfer" onClick={() => setOp('transfer')}>{tr('تحويل مخزون', 'Transfer')}</Button>
         <Button variant="ghost" icon="arrow-down" onClick={() => setOp('opening')}>{tr('رصيد افتتاحي', 'Opening stock')}</Button>
         <Button variant="ghost" icon="edit" onClick={() => setOp('adjustment')}>{tr('تسوية جرد', 'Adjustment')}</Button>
+        <Link href="/inventory/batches" className="btn ghost">{tr('الباتشات والصلاحية', 'Batches & expiry')}</Link>
         <Link href="/inventory/counts" className="btn ghost">{tr('الجرد المخزني', 'Stock counts')}</Link>
       </PageHeader>
 
