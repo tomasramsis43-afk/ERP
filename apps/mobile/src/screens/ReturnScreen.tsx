@@ -6,6 +6,7 @@ import { OutboxItem } from '../core/outbox';
 import { Receipt } from '../core/receipts';
 import { Customer, local, saveOperation } from '../db/database';
 import { pick, t } from '../i18n';
+import { ProductPicker } from './ProductPicker';
 import { useTheme } from './theme';
 
 const QTY = /^\d{1,10}(\.\d{1,4})?$/;
@@ -139,14 +140,12 @@ export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
       <Pressable style={s.ghost} onPress={() => setPicking(!picking)}>
         <Text style={{ color: c.primary }}>{t('addProduct')}</Text>
       </Pressable>
-      {picking
-        ? products.map((p) => (
-            <Pressable key={p.id} style={s.card} onPress={() => { setCart((cur) => (cur.some((l) => l.productId === p.id) ? cur : [...cur, { productId: p.id, quantity: '1' }])); setPicking(false); }}>
-              <Text style={s.text}>{pick(p.nameAr, p.nameEn)}</Text>
-              <Text style={s.sub}>{p.code}</Text>
-            </Pressable>
-          ))
-        : null}
+      <ProductPicker
+        visible={picking}
+        products={products}
+        onPick={(p) => { setCart((cur) => (cur.some((l) => l.productId === p.id) ? cur : [...cur, { productId: p.id, quantity: '1' }])); setPicking(false); }}
+        onClose={() => setPicking(false)}
+      />
 
       <View style={[s.card, s.row]}>
         <Text style={s.text}>{t('total')}</Text>

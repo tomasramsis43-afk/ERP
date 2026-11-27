@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
 import { hasSession, logout, onSessionExpired } from './src/api/client';
+import { databaseIsHealthy } from './src/db/database';
 import { Lang, getLang, setLang, t } from './src/i18n';
 import { CollectionScreen } from './src/screens/CollectionScreen';
 import { CloseDayScreen } from './src/screens/CloseDayScreen';
@@ -30,6 +31,11 @@ export default function App() {
       setSignedIn(ok);
       setReady(true);
     });
+  }, []);
+
+  useEffect(() => {
+    // Warn, never repair or delete: unsent operations may still be readable and must not be lost.
+    void databaseIsHealthy().then((ok) => { if (!ok) Alert.alert(t('dbDamaged')); }).catch(() => Alert.alert(t('dbDamaged')));
   }, []);
 
   useEffect(() => onSessionExpired(() => {

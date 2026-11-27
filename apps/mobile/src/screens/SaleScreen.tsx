@@ -7,6 +7,7 @@ import { OutboxItem } from '../core/outbox';
 import { Receipt } from '../core/receipts';
 import { Customer, local, saveOperation } from '../db/database';
 import { pick, t } from '../i18n';
+import { ProductPicker } from './ProductPicker';
 import { useTheme } from './theme';
 
 const QTY = /^\d{1,10}(\.\d{1,4})?$/;
@@ -140,14 +141,13 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
       <Pressable style={s.ghost} onPress={() => setPicking(!picking)}>
         <Text style={{ color: c.primary }}>{t('addProduct')}</Text>
       </Pressable>
-      {picking
-        ? products.map((p) => (
-            <Pressable key={p.id} style={s.card} onPress={() => add(p)}>
-              <Text style={s.text}>{pick(p.nameAr, p.nameEn)}</Text>
-              <Text style={s.sub}>{p.code} · {t('van')}: {stock.get(p.id) ?? '0'}</Text>
-            </Pressable>
-          ))
-        : null}
+      <ProductPicker
+        visible={picking}
+        products={products}
+        stock={stock}
+        onPick={add}
+        onClose={() => setPicking(false)}
+      />
 
       <View style={[s.card, s.row]}>
         <Text style={s.text}>{t('total')}</Text>

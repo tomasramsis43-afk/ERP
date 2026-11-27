@@ -2,6 +2,7 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
 import { ensureDeviceId } from '../core/deviceId';
+import { Migration, migrate } from '../core/migrations';
 import { CustomerPrice, Product } from '../core/cart';
 import { OutboxItem } from '../core/outbox';
 import { Receipt, pruneReceipts } from '../core/receipts';
@@ -27,13 +28,11 @@ export interface RepProfile {
   custodyBalance: string;
 }
 
-let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
-
-export function db(): Promise<SQLite.SQLiteDatabase> {
-  dbPromise ??= (async () => {
-    const d = await SQLite.openDatabaseAsync('erp-field.db');
-    await d.execAsync(`
-      PRAGMA journal_mode = WAL;
+/** Released schema steps. Never edit a released step; add a new one. Step 1 equals the original schema, so existing installs upgrade in place. */
+const MIGRATIONS: Migration[] = [
+  {
+    version: 1,
+    sql: `
       CREATE TABLE IF NOT EXISTS outbox (
         opId TEXT PRIMARY KEY, type TEXT NOT NULL, payload TEXT NOT NULL, clientCreatedAt TEXT NOT NULL,
         status TEXT NOT NULL, error TEXT, attempts INTEGER NOT NULL DEFAULT 0
@@ -43,10 +42,42 @@ export function db(): Promise<SQLite.SQLiteDatabase> {
         opId TEXT PRIMARY KEY, date TEXT NOT NULL, createdAt TEXT NOT NULL, body TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS receipts_date ON receipts (date);
-    `);
+    `,
+  },
+  {
+    version: 2,
+    sql: `CREATE INDEX IF NOT EXISTS outbox_status_created ON outbox (status, clientCreatedAt);`,
+  },
+];
+
+let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+
+export function db(): Promise<SQLite.SQLiteDatabase> {
+  dbPromise ??= (async () => {
+    const d = await SQLite.openDatabaseAsync('erp-field.db');
+    await d.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+    await migrate(
+      {
+        getVersion: async () => (await d.getFirstAsync<{ user_version: number }>('PRAGMA user_version'))?.user_version ?? 0,
+        // Statements and the new version are stored in one transaction: a crash leaves the previous version intact.
+        apply: (sql, version) =>
+          d.withTransactionAsync(async () => {
+            await d.execAsync(sql);
+            await d.execAsync(`PRAGMA user_version = ${Math.trunc(version)}`);
+          }),
+      },
+      MIGRATIONS,
+    );
     return d;
   })();
   return dbPromise;
+}
+
+/** Reports whether SQLite considers the file healthy. It never deletes or repairs anything; unsent operations stay put. */
+export async function databaseIsHealthy(): Promise<boolean> {
+  const d = await db();
+  const rows = await d.getAllAsync<{ integrity_check: string }>('PRAGMA integrity_check');
+  return rows.length === 1 && rows[0].integrity_check === 'ok';
 }
 
 const rowToItem = (r: Record<string, unknown>): OutboxItem => ({
