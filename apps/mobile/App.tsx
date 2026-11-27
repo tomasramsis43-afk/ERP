@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native';
 import { hasSession, logout, onSessionExpired } from './src/api/client';
+import { startAutoSync } from './src/sync/syncRunner';
 import { databaseIsHealthy } from './src/db/database';
 import { Lang, getLang, setLang, t } from './src/i18n';
 import { CollectionScreen } from './src/screens/CollectionScreen';
@@ -44,6 +45,8 @@ export default function App() {
   }), []);
 
   const bump = useCallback(() => setVersion((v) => v + 1), []);
+
+  useEffect(() => (signedIn ? startAutoSync(bump) : undefined), [signedIn, bump]);
 
   function toggleLanguage() {
     const next: Lang = getLang() === 'ar' ? 'en' : 'ar';

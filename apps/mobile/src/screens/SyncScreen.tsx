@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { syncApi } from '../api/client';
 import { OutboxItem } from '../core/outbox';
-import { getDeviceId, local, store } from '../db/database';
+import { local, store } from '../db/database';
 import { t } from '../i18n';
-import { SyncReport, synchronize } from '../sync/syncEngine';
+import { SyncReport } from '../sync/syncEngine';
+import { runSync } from '../sync/syncRunner';
 import { useTheme } from './theme';
 
 export function SyncScreen({ onSynced }: { onSynced: () => void }) {
@@ -25,7 +25,7 @@ export function SyncScreen({ onSynced }: { onSynced: () => void }) {
   async function run() {
     setBusy(true);
     try {
-      setReport(await synchronize(syncApi, store, await getDeviceId()));
+      setReport(await runSync());
       onSynced();
     } finally {
       setBusy(false);

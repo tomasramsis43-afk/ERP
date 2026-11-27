@@ -31,10 +31,10 @@ Compared with the master specification. "Missing" means no schema/API for it exi
 | Branch (multi-branch) | Missing (no Branch model) |
 | Arabic PDF export | Not supported (Excel works; English PDF works) |
 | Redis-backed throttling | Not implemented |
-| Mobile: returns, day closing, day summary, receipts, van stock view | Missing screens (sale, collection, customers, sync exist) |
+| Mobile: returns, day closing, day summary, receipts, van stock view | Screens exist (type-checked, not run on a device) |
 | Web: customer/supplier/representative detail screens for custody and visits | Partial |
 | Mobile real-device test pass | Not done |
 | Web not exercised in a browser for document creation | Partially done (dialogs exist) |
 
 ## Verification limits
-Type-checks pass for API and web; unit tests pass for the accounting engine (6), web helpers (6) and mobile (20). The database test suites run in CI (PostgreSQL 16).
+Type-checks pass for API and web; unit tests pass for the accounting engine (6), web helpers (6) and mobile (46). The database test suites run in CI (PostgreSQL 16).
