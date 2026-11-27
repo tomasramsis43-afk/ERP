@@ -59,6 +59,20 @@ export class StatementsService {
     return rows.reduce((a, r) => a.plus(r.amount), ZERO());
   }
 
+  /** Simple VAT declaration: output VAT (sales) minus input VAT (purchases) for a period. */
+  async vatDeclaration(fromStr: string, toStr: string): Promise<{ from: string; to: string; outputVat: string; inputVat: string; netVat: string }> {
+    const f = toDate(fromStr);
+    const t = toDate(toStr);
+    assertRange(f, t);
+    const [sales, purchases] = await Promise.all([
+      this.prisma.salesInvoice.aggregate({ where: { status: 'POSTED', invoiceDate: { gte: f, lte: t } }, _sum: { vatTotal: true } }),
+      this.prisma.purchaseInvoice.aggregate({ where: { status: 'POSTED', invoiceDate: { gte: f, lte: t } }, _sum: { vatTotal: true } }),
+    ]);
+    const output = dec(sales._sum.vatTotal?.toString() ?? '0');
+    const input = dec(purchases._sum.vatTotal?.toString() ?? '0');
+    return { from: fromStr, to: toStr, outputVat: output.toFixed(2), inputVat: input.toFixed(2), netVat: output.minus(input).toFixed(2) };
+  }
+
   async incomeStatement(fromStr: string, toStr: string) {
     const from = toDate(fromStr);
     const to = toDate(toStr);
