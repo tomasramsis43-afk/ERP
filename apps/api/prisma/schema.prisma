@@ -32,6 +32,15 @@ model User {
   @@index([isActive])
 }
 
+/// Persistent failed-login counters, keyed by normalised email. Survives restarts
+/// and shared across instances, unlike an in-process Map.
+model LoginAttempt {
+  email       String    @id
+  failedCount Int       @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+}
+
 /// A physical operating unit. Users and warehouses belong to one branch;
 /// an unassigned user sees all branches (system-wide role).
 model Branch {

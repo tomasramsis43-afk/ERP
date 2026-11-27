@@ -93,6 +93,7 @@ async function seedCurrencyAndSettings(): Promise<void> {
     'vat.enabled': process.env.VAT_ENABLED === 'true',
     'vat.rate': process.env.VAT_RATE ?? '0.14',
     'inventory.valuationMethod': 'WEIGHTED_AVERAGE',
+    'sales.discountApprovalThreshold': '0.05',
     'ui.defaultLocale': process.env.DEFAULT_LOCALE ?? 'ar',
   };
   for (const [key, value] of Object.entries(settings)) {
