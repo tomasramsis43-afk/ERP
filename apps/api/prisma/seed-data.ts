@@ -50,6 +50,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, PermissionCode[]> = {
     'sales:edit_price',
     'sales:credit_sale',
     'sales:approve_return',
+    'inventory:override_negative',
   ],
   PURCHASING_MANAGER: [
     ...crud('purchases', ['view', 'create', 'update', 'approve', 'cancel']),

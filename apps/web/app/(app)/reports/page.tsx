@@ -22,9 +22,9 @@ interface AgingReport { type: string; asOf: string; rows: AgingRow[]; totals: { 
 interface ProfitRow { key: string; code: string; nameAr: string; nameEn: string | null; quantity: string; revenue: string; cost: string; profit: string; marginPercent: string; invoices: number }
 interface ProfitReport { from: string; to: string; dimension: string; rows: ProfitRow[]; totals: { revenue: string; cost: string; profit: string; marginPercent: string } }
 
-interface ValRow { warehouseId: string; warehouseNameAr: string; warehouseNameEn: string; productId: string; productCode: string; productNameAr: string; productNameEn: string; quantity: string; avgCost: string; value: string }
+interface ValRow { warehouseId: string; warehouseNameAr: string; warehouseNameEn: string; productId: string; productCode: string; productNameAr: string; productNameEn: string; quantity: string; avgCost: string; valuationCost: string; value: string }
 interface GlPair { stockValue: string; glBalance: string; difference: string }
-interface ValuationReport { totalValue: string; rows: ValRow[]; glComparison: { inventory: GlPair; vehicleStock: GlPair } | null }
+interface ValuationReport { method: 'FIFO' | 'WEIGHTED_AVERAGE'; totalValue: string; rows: ValRow[]; glComparison: { inventory: GlPair; vehicleStock: GlPair } | null }
 interface LowRow { productId: string; code: string; nameAr: string; nameEn: string; onHand: string; reorderLevel: string; minLevel: string; shortfall: string; belowMin: boolean }
 interface OverRow { productId: string; code: string; nameAr: string; nameEn: string; onHand: string; maxLevel: string; excess: string; excessValue: string }
 interface SlowRow { productId: string; code: string; nameAr: string; nameEn: string; quantity: string; value: string; lastSaleDate: string | null }
@@ -274,6 +274,7 @@ export default function ReportsPage() {
                 {valuation.data.glComparison ? (
                   <Card className="mb-16">
                     <div className="summary-strip">
+                      <div className="summary-cell"><div className="label">{tr('طريقة التقييم', 'Valuation method')}</div><div className="value">{valuation.data.method === 'FIFO' ? 'FIFO' : tr('متوسط مرجح', 'Weighted average')}</div></div>
                       <div className="summary-cell"><div className="label">{tr('قيمة المخزون (الأصناف)', 'Stock value (items)')}</div><div className="value"><Money value={valuation.data.totalValue} bold /></div></div>
                       <div className="summary-cell"><div className="label">{tr('رصيد حساب المخزون', 'Inventory GL balance')}</div><div className="value"><Money value={valuation.data.glComparison.inventory.glBalance} /></div></div>
                       <div className="summary-cell"><div className="label">{tr('فرق المخزون', 'Inventory difference')}</div><div className="value"><Money value={valuation.data.glComparison.inventory.difference} bold /></div></div>
@@ -291,12 +292,13 @@ export default function ReportsPage() {
                       { key: 'name', header: tr('الصنف', 'Product'), render: (r) => (lang === 'ar' ? r.productNameAr : r.productNameEn || r.productNameAr) },
                       { key: 'qty', header: tr('الكمية', 'Quantity'), align: 'end', render: (r) => <Qty value={r.quantity} /> },
                       { key: 'cost', header: tr('متوسط التكلفة', 'Avg cost'), align: 'end', render: (r) => <Money value={r.avgCost} /> },
+                      { key: 'usedCost', header: tr('التكلفة المستخدمة', 'Valuation cost'), align: 'end', render: (r) => <Money value={r.valuationCost} /> },
                       { key: 'val', header: tr('القيمة', 'Value'), align: 'end', render: (r) => <Money value={r.value} bold /> },
                     ]}
                     empty={<EmptyState title={tr('لا يوجد مخزون', 'No stock on hand')} />}
                     footer={
                       <tr>
-                        <td colSpan={5} style={{ fontWeight: 700 }}>{tr('الإجمالي', 'Total')}</td>
+                        <td colSpan={6} style={{ fontWeight: 700 }}>{tr('الإجمالي', 'Total')}</td>
                         <td style={{ textAlign: 'end', fontWeight: 700 }}><Money value={valuation.data.totalValue} bold /></td>
                       </tr>
                     }

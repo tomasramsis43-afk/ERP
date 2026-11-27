@@ -41,6 +41,7 @@ export const SPECIAL_PERMISSIONS = [
   'sales:approve_return',
   'sales:approve_discount',
   'accounting:adjust_balance',
+  'inventory:override_negative',
   'reports:view_all',
   'routes:log_visit',
 ] as const;

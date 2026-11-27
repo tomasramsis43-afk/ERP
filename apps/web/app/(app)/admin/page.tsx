@@ -296,7 +296,14 @@ function SettingsTab() {
           <div className="form-grid" style={{ padding: 16 }}>
             {(data ?? []).map((s) => (
               <Field key={s.key} label={s.key} className="col-6">
-                <Input value={edits[s.key] ?? ''} onChange={(e) => setEdits({ ...edits, [s.key]: e.target.value })} dir="ltr" />
+                {s.key === 'inventory.valuationMethod' ? (
+                  <Select value={edits[s.key] ?? 'WEIGHTED_AVERAGE'} onChange={(e) => setEdits({ ...edits, [s.key]: e.target.value })}>
+                    <option value="WEIGHTED_AVERAGE">{tr('متوسط مرجح', 'Weighted average')}</option>
+                    <option value="FIFO">{tr('أول ما يدخل أول ما يخرج (FIFO)', 'First in, first out (FIFO)')}</option>
+                  </Select>
+                ) : (
+                  <Input value={edits[s.key] ?? ''} onChange={(e) => setEdits({ ...edits, [s.key]: e.target.value })} dir="ltr" />
+                )}
               </Field>
             ))}
           </div>

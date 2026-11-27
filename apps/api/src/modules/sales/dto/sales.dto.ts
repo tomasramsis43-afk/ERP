@@ -86,6 +86,10 @@ export class CreateSalesInvoiceDto {
   @IsOptional() @IsString() @MinLength(3) @MaxLength(300)
   creditOverrideReason?: string;
 
+  /** Required when an authorised user sells more stock than is on hand. */
+  @IsOptional() @IsString() @MinLength(3) @MaxLength(300)
+  negativeStockReason?: string;
+
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(300)
   @ValidateNested({ each: true }) @Type(() => SalesLineDto)
   lines!: SalesLineDto[];

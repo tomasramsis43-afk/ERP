@@ -253,10 +253,12 @@ interface DraftLine {
   price: string;
   priceTouched: boolean;
   discount: string;
+  batchNo: string;
+  expiryDate: string;
 }
 
 function emptyLine(): DraftLine {
-  return { key: uuid(), product: null, unitId: '', qty: '1', price: '', priceTouched: false, discount: '0' };
+  return { key: uuid(), product: null, unitId: '', qty: '1', price: '', priceTouched: false, discount: '0', batchNo: '', expiryDate: '' };
 }
 
 function InvoiceForm({
@@ -291,6 +293,7 @@ function InvoiceForm({
   const [representativeId, setRepresentativeId] = useState('');
   const [note, setNote] = useState('');
   const [creditOverrideReason, setCreditOverrideReason] = useState('');
+  const [negativeStockReason, setNegativeStockReason] = useState('');
   const [supplierRef, setSupplierRef] = useState('');
   const [shippingCost, setShippingCost] = useState('');
   const [originalInvoiceId, setOriginalInvoiceId] = useState('');
@@ -308,6 +311,8 @@ function InvoiceForm({
     setPriceList('RETAIL');
     setRepresentativeId('');
     setNote('');
+    setCreditOverrideReason('');
+    setNegativeStockReason('');
     setSupplierRef('');
     setShippingCost('');
     setOriginalInvoiceId('');
@@ -388,6 +393,7 @@ function InvoiceForm({
         warehouseId,
         note: note || undefined,
         ...(isSales && !isReturn && paymentKind === 'CREDIT' && creditOverrideReason.trim() ? { creditOverrideReason: creditOverrideReason.trim() } : {}),
+        ...(isSales && negativeStockReason.trim() ? { negativeStockReason: negativeStockReason.trim() } : {}),
         lines: valid.map((l) => ({
           productId: l.product!.id,
           quantity: l.qty,
@@ -397,7 +403,11 @@ function InvoiceForm({
                 ...(l.priceTouched ? { unitPrice: l.price } : {}),
                 ...(Number(l.discount) > 0 ? { discount: l.discount } : {}),
               }
-            : { unitPrice: priceOf(l).toFixed(4) }),
+            : {
+                unitPrice: priceOf(l).toFixed(4),
+                ...(l.batchNo.trim() ? { batchNo: l.batchNo.trim() } : {}),
+                ...(l.expiryDate ? { expiryDate: l.expiryDate } : {}),
+              }),
         })),
       };
       if (isSales) {
@@ -499,6 +509,11 @@ function InvoiceForm({
                   <Input value={creditOverrideReason} onChange={(e) => setCreditOverrideReason(e.target.value)} placeholder={tr('يُطلب فقط عند تجاوز الحد وبصلاحية الاستثناء', 'Only needed when the limit is exceeded, with the override permission')} />
                 </Field>
               ) : null}
+              {can(me, 'inventory:override_negative') ? (
+                <Field label={tr('سبب البيع بكمية أكبر من المخزون (إن لزم)', 'Negative-stock reason (if needed)')} className="col-6">
+                  <Input value={negativeStockReason} onChange={(e) => setNegativeStockReason(e.target.value)} placeholder={tr('يُطلب فقط عند تجاوز الرصيد وبصلاحية الاستثناء', 'Only needed when stock is insufficient, with the override permission')} />
+                </Field>
+              ) : null}
             </>
           ) : (
             <>
@@ -543,6 +558,8 @@ function InvoiceForm({
                 <th style={{ width: 100 }}>{tr('الكمية', 'Qty')}</th>
                 <th style={{ width: 120 }}>{tr('السعر', 'Price')}</th>
                 {isSales ? <th style={{ width: 110 }}>{tr('خصم', 'Discount')}</th> : null}
+                {!isSales ? <th style={{ width: 120 }}>{tr('الباتش', 'Batch')}</th> : null}
+                {!isSales ? <th style={{ width: 150 }}>{tr('الصلاحية', 'Expiry')}</th> : null}
                 <th style={{ width: 120 }}>{tr('الإجمالي', 'Total')}</th>
                 <th style={{ width: 40 }} />
               </tr>
@@ -608,6 +625,16 @@ function InvoiceForm({
                         disabled={!can(me, 'sales:discount')}
                         onChange={(e) => setLine(line.key, { discount: e.target.value })}
                       />
+                    </td>
+                  ) : null}
+                  {!isSales ? (
+                    <td>
+                      <Input value={line.batchNo} onChange={(e) => setLine(line.key, { batchNo: e.target.value })} placeholder={tr('اختياري', 'Optional')} />
+                    </td>
+                  ) : null}
+                  {!isSales ? (
+                    <td>
+                      <Input type="date" value={line.expiryDate} onChange={(e) => setLine(line.key, { expiryDate: e.target.value })} />
                     </td>
                   ) : null}
                   <td><Money value={lineTotal(line).toFixed(2)} bold /></td>
