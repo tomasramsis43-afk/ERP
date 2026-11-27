@@ -17,6 +17,10 @@ const dict = {
     closeDay: 'اليومية', preview: 'معاينة اليوم', expectedCash: 'النقدية المتوقعة', cashSales: 'مبيعات نقدية', creditSales: 'مبيعات آجلة', collections: 'التحصيلات',
     declaredCash: 'النقدية الفعلية', counted: 'المعدود', expected: 'المتوقع', difference: 'الفرق', differenceReason: 'سبب الفرق (إلزامي)', closeTheDay: 'إقفال اليوم',
     syncFirst: 'يوجد عمليات غير مرسلة. أرسلها من تبويب المزامنة قبل الإقفال.', dayClosed: 'تم إقفال اليوم', needOnline: 'يتطلب الإقفال اتصالاً بالخادم', fillAll: 'أدخل النقدية وعدّ كل الأصناف',
+    returns: 'مرتجع', returnGood: 'سليم', returnDamaged: 'تالف', returnCredit: 'خصم من حساب العميل', returnCash: 'رد نقدي', vanStock: 'مخزون السيارة', daySummary: 'ملخص اليوم',
+    cashRefunds: 'مرتجعات نقدية', returnsGood: 'مرتجعات سليمة', returnsDamaged: 'مرتجعات تالفة', operations: 'عدد العمليات', share: 'مشاركة الإيصال', receipt: 'إيصال', date: 'التاريخ', ref: 'مرجع',
+    receiptCashSale: 'إيصال بيع نقدي', receiptCreditSale: 'إيصال بيع آجل', receiptReturnGood: 'إيصال مرتجع سليم', receiptReturnDamaged: 'إيصال مرتجع تالف', receiptCollection: 'إيصال تحصيل',
+    returnNote: 'المرتجع يُخصم من حساب العميل والتالف لا يعود للمخزون', noOps: 'لا توجد عمليات اليوم', allSynced: 'كل العمليات أُرسلت', unsyncedOps: 'عمليات لم تُرسل بعد',
   },
   en: {
     appName: 'Field Rep',
@@ -32,6 +36,10 @@ const dict = {
     closeDay: 'Close day', preview: 'Preview day', expectedCash: 'Expected cash', cashSales: 'Cash sales', creditSales: 'Credit sales', collections: 'Collections',
     declaredCash: 'Actual cash', counted: 'Counted', expected: 'Expected', difference: 'Difference', differenceReason: 'Reason for the difference (required)', closeTheDay: 'Close the day',
     syncFirst: 'Some operations are not sent yet. Send them from the Sync tab before closing.', dayClosed: 'Day closed', needOnline: 'Closing needs a connection to the server', fillAll: 'Enter the cash and count every product',
+    returns: 'Return', returnGood: 'Good', returnDamaged: 'Damaged', returnCredit: 'Credit customer account', returnCash: 'Cash refund', vanStock: 'Van stock', daySummary: 'Day summary',
+    cashRefunds: 'Cash refunds', returnsGood: 'Good returns', returnsDamaged: 'Damaged returns', operations: 'Operations', share: 'Share receipt', receipt: 'Receipt', date: 'Date', ref: 'Ref',
+    receiptCashSale: 'Cash sale receipt', receiptCreditSale: 'Credit sale receipt', receiptReturnGood: 'Good return receipt', receiptReturnDamaged: 'Damaged return receipt', receiptCollection: 'Collection receipt',
+    returnNote: 'The return is credited to the customer; damaged goods are not restocked', noOps: 'No operations today', allSynced: 'Everything is sent', unsyncedOps: 'Operations not sent yet',
   },
 } as const;
 

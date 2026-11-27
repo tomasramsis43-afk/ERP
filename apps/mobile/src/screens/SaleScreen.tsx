@@ -1,8 +1,10 @@
 import * as Crypto from 'expo-crypto';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { CartLine, CustomerPrice, Product, applySale, cartTotal, stockShortages } from '../core/cart';
-import { Customer, enqueue, local } from '../db/database';
+import { CartLine, CustomerPrice, Product, applySale, cartTotal, lineTotal, stockShortages } from '../core/cart';
+import { format } from '../core/money';
+import { Receipt } from '../core/receipts';
+import { Customer, addReceipt, enqueue, local } from '../db/database';
 import { pick, t } from '../i18n';
 import { useTheme } from './theme';
 
@@ -44,8 +46,9 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
 
     const now = new Date();
     // The operation id is created once, here. Every retry of this sale reuses it, so the server can never create it twice.
+    const opId = Crypto.randomUUID();
     await enqueue({
-      opId: Crypto.randomUUID(),
+      opId,
       type: 'SALE',
       clientCreatedAt: now.toISOString(),
       status: 'PENDING',
@@ -58,6 +61,21 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
         lines: cart.map((l) => ({ productId: l.productId, quantity: l.quantity })),
       },
     });
+    const who = customers.find((x) => x.id === customer);
+    const receipt: Receipt = {
+      opId,
+      kind: kind === 'CASH' ? 'CASH_SALE' : 'CREDIT_SALE',
+      date: now.toISOString().slice(0, 10),
+      createdAt: now.toISOString(),
+      customerId: customer,
+      customerName: who ? pick(who.nameAr, who.nameEn) : null,
+      lines: cart.map((l) => {
+        const p = byId.get(l.productId)!;
+        return { name: pick(p.nameAr, p.nameEn), quantity: l.quantity, amount: format(lineTotal(p, l, customer, prices, 'RETAIL'), 2) };
+      }),
+      total,
+    };
+    await addReceipt(receipt);
     await local.setVanStock(applySale(stock, byId, cart)); // the next offline sale sees what is really left
     Alert.alert(t('savedOffline'));
     setCart([]);
