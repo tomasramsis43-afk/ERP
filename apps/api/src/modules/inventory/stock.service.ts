@@ -75,7 +75,7 @@ export class StockService {
         WHERE "warehouseId" = ${input.warehouseId} AND "productId" = ${input.productId}
           AND "quantity" >= ${qty.toFixed(4)}::numeric`;
       if (updated === 0) {
-        throw new BadRequestException(`Insufficient stock in ${warehouse.code} for product ${input.productId}`);
+        throw new BadRequestException(`Insufficient stock in warehouse ${warehouse.code}`);
       }
     }
 

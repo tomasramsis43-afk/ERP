@@ -221,6 +221,7 @@ export class InventoryService {
           warehouseId: dto.warehouseId,
           productId: l.productId,
           quantity: l.qty,
+          unitCost: direction === 'IN' ? l.unitCost : undefined,
           movementDate: date,
           source: 'ADJUSTMENT',
           idempotencyKey: key ? `${key}:${i}` : undefined,
