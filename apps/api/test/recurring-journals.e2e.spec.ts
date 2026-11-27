@@ -55,9 +55,9 @@ d('recurring journals (end to end, requires seeded PostgreSQL)', () => {
       })
       .expect(201);
 
-    const first = await http.post(`/accounting/recurring/${created.body.id}/run`).set(auth()).expect(201);
+    const first = await http.post(`/accounting/recurring/${created.body.id}/run?date=${today}`).set(auth()).expect(201);
     expect(first.body.source).toBe('RECURRING');
-    const again = await http.post(`/accounting/recurring/${created.body.id}/run`).set(auth()).expect(201);
+    const again = await http.post(`/accounting/recurring/${created.body.id}/run?date=${today}`).set(auth()).expect(201);
     expect(again.body.id).toBe(first.body.id);
 
     const list = await http.get('/accounting/recurring').set(auth()).expect(200);
