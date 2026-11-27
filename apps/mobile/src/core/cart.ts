@@ -3,11 +3,13 @@ import { Scaled, format, lineAmount, parseScaled } from './money';
 export interface ProductUnit {
   unitId: string;
   factor: string;
+  barcode?: string | null;
 }
 
 export interface Product {
   id: string;
   code: string;
+  barcode?: string | null;
   nameAr: string;
   nameEn: string | null;
   baseUnitId: string;

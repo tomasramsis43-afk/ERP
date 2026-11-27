@@ -36,8 +36,8 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const total = useMemo(() => (cart.length ? cartTotal(byId, cart, customer, prices, 'RETAIL') : '0.00'), [cart, byId, customer, prices]);
 
-  function add(p: Product) {
-    setCart((cur) => (cur.some((l) => l.productId === p.id) ? cur : [...cur, { productId: p.id, quantity: '1' }]));
+  function add(p: Product, unitId?: string) {
+    setCart((cur) => (cur.some((l) => l.productId === p.id) ? cur : [...cur, { productId: p.id, quantity: '1', ...(unitId ? { unitId } : {}) }]));
     setPicking(false);
   }
 
@@ -61,7 +61,7 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
         invoiceDate: now.toISOString().slice(0, 10),
         paymentKind: kind,
         ...(customer ? { customerId: customer } : {}),
-        lines: cart.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+        lines: cart.map((l) => ({ productId: l.productId, quantity: l.quantity, ...(l.unitId ? { unitId: l.unitId } : {}) })),
       },
     };
     const who = customers.find((x) => x.id === customer);
@@ -122,6 +122,7 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
         return (
           <View key={l.productId} style={s.card}>
             <Text style={s.text}>{pick(p.nameAr, p.nameEn)}</Text>
+            {l.unitId ? <Text style={s.sub}>{t('packUnit')} {p.units.find((u) => u.unitId === l.unitId)?.factor ?? '?'}</Text> : null}
             <Text style={s.sub}>{t('van')}: {stock.get(p.id) ?? '0'}</Text>
             <View style={s.row}>
               <TextInput

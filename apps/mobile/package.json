@@ -12,16 +12,19 @@
     "test": "jest"
   },
   "dependencies": {
-    "expo": "~52.0.0",
-    "expo-sqlite": "~15.1.0",
-    "expo-secure-store": "~14.0.0",
-    "expo-status-bar": "~2.0.0",
     "@react-native-community/netinfo": "11.4.1",
-    "react": "18.3.1",
-    "react-native": "0.76.5",
+    "expo": "~52.0.0",
+    "expo-build-properties": "~0.13.1",
+    "expo-camera": "~16.0.18",
     "expo-constants": "~17.0.0",
     "expo-crypto": "~14.0.0",
-    "expo-build-properties": "~0.13.1"
+    "expo-print": "~14.0.3",
+    "expo-secure-store": "~14.0.0",
+    "expo-sharing": "~13.0.1",
+    "expo-sqlite": "~15.1.0",
+    "expo-status-bar": "~2.0.0",
+    "react": "18.3.1",
+    "react-native": "0.76.5"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",

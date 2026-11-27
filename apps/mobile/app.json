@@ -33,6 +33,12 @@
             "kotlinVersion": "1.9.25"
           }
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow ERP Field to use the camera to scan product barcodes."
+        }
       ]
     ]
   }

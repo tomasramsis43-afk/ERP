@@ -1,8 +1,10 @@
 import React, { useDeferredValue, useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, SafeAreaView, Text, TextInput, View } from 'react-native';
+import { Alert, FlatList, Modal, Pressable, SafeAreaView, Text, TextInput, View } from 'react-native';
+import { lookupBarcode } from '../core/barcode';
 import { Product } from '../core/cart';
 import { filterProducts } from '../core/search';
 import { pick, t } from '../i18n';
+import { BarcodeScanner } from './BarcodeScanner';
 import { useTheme } from './theme';
 
 /** Full-screen product chooser: virtualized list + Arabic/English/code search, so thousands of products stay fast. */
@@ -12,13 +14,24 @@ export function ProductPicker({
   visible: boolean;
   products: Product[];
   stock?: Map<string, string>;
-  onPick: (p: Product) => void;
+  onPick: (p: Product, unitId?: string) => void;
   onClose: () => void;
 }) {
   const { s, c } = useTheme();
   const [query, setQuery] = useState('');
+  const [scanning, setScanning] = useState(false);
   const deferred = useDeferredValue(query);
   const data = useMemo(() => filterProducts(products, deferred, 100), [products, deferred]);
+
+  function onScan(code: string) {
+    const r = lookupBarcode(products, code);
+    if (r.kind === 'FOUND') {
+      setScanning(false);
+      onPick(r.product, r.unitId);
+    } else {
+      Alert.alert(r.kind === 'UNKNOWN' ? t('unknownBarcode') : t('duplicateBarcode'), code);
+    }
+  }
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -33,6 +46,9 @@ export function ProductPicker({
             autoFocus
             autoCorrect={false}
           />
+          <Pressable style={[s.ghost, { marginStart: 8 }]} onPress={() => setScanning(true)} accessibilityRole="button" accessibilityLabel={t('scan')}>
+            <Text style={{ color: c.primary }}>▦</Text>
+          </Pressable>
           <Pressable style={[s.ghost, { marginStart: 8 }]} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('close')}>
             <Text style={{ color: c.danger }}>✕</Text>
           </Pressable>
@@ -52,6 +68,7 @@ export function ProductPicker({
             </Pressable>
           )}
         />
+        <BarcodeScanner visible={scanning} onScan={onScan} onClose={() => setScanning(false)} />
       </SafeAreaView>
     </Modal>
   );

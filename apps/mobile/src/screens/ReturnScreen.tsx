@@ -56,7 +56,7 @@ export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
         paymentKind: refund,
         condition,
         ...(customer ? { customerId: customer } : {}),
-        lines: cart.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+        lines: cart.map((l) => ({ productId: l.productId, quantity: l.quantity, ...(l.unitId ? { unitId: l.unitId } : {}) })),
       },
     };
     const who = customers.find((x) => x.id === customer);
@@ -122,6 +122,7 @@ export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
         return (
           <View key={l.productId} style={s.card}>
             <Text style={s.text}>{pick(p.nameAr, p.nameEn)}</Text>
+            {l.unitId ? <Text style={s.sub}>{t('packUnit')} {p.units.find((u) => u.unitId === l.unitId)?.factor ?? '?'}</Text> : null}
             <View style={s.row}>
               <TextInput
                 style={[s.input, { flex: 1, marginBottom: 0 }]}
@@ -143,7 +144,7 @@ export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
       <ProductPicker
         visible={picking}
         products={products}
-        onPick={(p) => { setCart((cur) => (cur.some((l) => l.productId === p.id) ? cur : [...cur, { productId: p.id, quantity: '1' }])); setPicking(false); }}
+        onPick={(p, unitId) => { setCart((cur) => (cur.some((l) => l.productId === p.id) ? cur : [...cur, { productId: p.id, quantity: '1', ...(unitId ? { unitId } : {}) }])); setPicking(false); }}
         onClose={() => setPicking(false)}
       />
 
