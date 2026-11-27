@@ -1,6 +1,6 @@
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PERMISSIONS_KEY } from '../decorators/auth.decorators';
+import { AUTHENTICATED_KEY, PERMISSIONS_KEY } from '../decorators/auth.decorators';
 import { PermissionsGuard, hasAllPermissions } from './permissions.guard';
 
 function ctx(user: unknown): ExecutionContext {
@@ -17,8 +17,15 @@ describe('PermissionsGuard', () => {
     expect(hasAllPermissions({ permissions: ['a:view'] }, ['a:view', 'a:create'])).toBe(false);
   });
 
-  it('allows when no permission metadata is set', () => {
+  it('denies a route that has no access rule at all (deny by default)', () => {
     const reflector = { getAllAndOverride: jest.fn().mockReturnValue(undefined) } as unknown as Reflector;
+    expect(() => new PermissionsGuard(reflector).canActivate(ctx({ permissions: [] }))).toThrow(ForbiddenException);
+  });
+
+  it('allows a route explicitly marked for any authenticated user', () => {
+    const reflector = {
+      getAllAndOverride: jest.fn((key: string) => key === AUTHENTICATED_KEY),
+    } as unknown as Reflector;
     expect(new PermissionsGuard(reflector).canActivate(ctx({ permissions: [] }))).toBe(true);
   });
 

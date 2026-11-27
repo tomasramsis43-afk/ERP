@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
-import { AuthUser, CurrentUser, Public } from '../../common/decorators/auth.decorators';
+import { AnyAuthenticated, AuthUser, CurrentUser, Public } from '../../common/decorators/auth.decorators';
 import { LoginDto, RefreshDto } from './dto/auth.dto';
 import { AuthService, ClientInfo } from './auth.service';
 
@@ -39,6 +39,7 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
+  @AnyAuthenticated()
   @Get('me')
   me(@CurrentUser() user: AuthUser): AuthUser {
     return user;

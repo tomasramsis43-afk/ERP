@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { AuthUser, IS_PUBLIC_KEY, PERMISSIONS_KEY } from '../decorators/auth.decorators';
+import { AUTHENTICATED_KEY, AuthUser, IS_PUBLIC_KEY, PERMISSIONS_KEY } from '../decorators/auth.decorators';
 
 /** Pure check, reused by tests and other services. */
 export function hasAllPermissions(user: Pick<AuthUser, 'permissions'>, required: string[]): boolean {
@@ -22,7 +22,15 @@ export class PermissionsGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (!required || required.length === 0) return true;
+    if (!required || required.length === 0) {
+      // Deny by default: a route must say who may call it. A forgotten decorator must never open a route to every user.
+      const anyAuthenticated = this.reflector.getAllAndOverride<boolean>(AUTHENTICATED_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      if (anyAuthenticated) return true;
+      throw new ForbiddenException('This route has no access rule');
+    }
 
     const user = context.switchToHttp().getRequest().user as AuthUser | undefined;
     if (!user || !hasAllPermissions(user, required)) {
