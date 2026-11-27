@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { FlatList, Pressable, Share, Text, View } from 'react-native';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import { Alert, FlatList, Pressable, Share, Text, View } from 'react-native';
+import { SummaryLabels, daySummaryHtml, receiptHtml } from '../core/receiptHtml';
 import { Receipt, ReceiptKind, ReceiptLabels, receiptText, summarizeDay } from '../core/receipts';
 import { pruneOldReceipts, receiptsForDate, store } from '../db/database';
-import { t } from '../i18n';
+import { getLang, t } from '../i18n';
 import { useTheme } from './theme';
 
 const kindKey: Record<ReceiptKind, 'receiptCashSale' | 'receiptCreditSale' | 'receiptReturnGood' | 'receiptReturnDamaged' | 'receiptCollection'> = {
@@ -21,6 +24,25 @@ const labels = (): ReceiptLabels => ({
   estimate: t('estimate'),
   ref: t('ref'),
 });
+
+const dir = () => (getLang() === 'ar' ? 'rtl' : 'ltr') as 'rtl' | 'ltr';
+
+const summaryLabels = (): SummaryLabels => ({
+  title: t('daySummary'), date: t('date'), operations: t('operations'), cashSales: t('cashSales'), creditSales: t('creditSales'),
+  collections: t('collections'), returnsGood: t('returnsGood'), returnsDamaged: t('returnsDamaged'), cashRefunds: t('cashRefunds'),
+  expectedCash: t('expectedCash'), estimate: t('estimate'),
+});
+
+/** Renders HTML to a PDF file on the device (works offline) and opens the share sheet (print, save, send). */
+async function sharePdf(html: string): Promise<void> {
+  try {
+    const { uri } = await Print.printToFileAsync({ html });
+    if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+    else Alert.alert(t('pdfFailed'));
+  } catch {
+    Alert.alert(t('pdfFailed'));
+  }
+}
 
 export function DaySummaryScreen({ version }: { version: number }) {
   const { s, c } = useTheme();
@@ -59,6 +81,9 @@ export function DaySummaryScreen({ version }: { version: number }) {
         {row(t('cashRefunds'), sum.cashRefunds)}
         {row(t('expectedCash'), sum.expectedCash, true)}
       </View>
+      <Pressable style={s.ghost} onPress={() => void sharePdf(daySummaryHtml(sum, summaryLabels(), dir()))} accessibilityRole="button">
+        <Text style={{ color: c.primary }}>{t('pdfSummary')}</Text>
+      </Pressable>
       <Text style={unsent ? s.error : s.sub}>{unsent ? `${t('unsyncedOps')}: ${unsent}` : t('allSynced')}</Text>
       <Text style={s.sub}>{t('estimate')}</Text>
       <FlatList
@@ -73,6 +98,9 @@ export function DaySummaryScreen({ version }: { version: number }) {
             </View>
             <Pressable onPress={() => void Share.share({ message: receiptText(item, labels()) })}>
               <Text style={{ color: c.primary }}>{t('share')}</Text>
+            </Pressable>
+            <Pressable style={{ marginStart: 12 }} onPress={() => void sharePdf(receiptHtml(item, labels(), dir()))} accessibilityRole="button">
+              <Text style={{ color: c.primary }}>{t('pdf')}</Text>
             </Pressable>
           </View>
         )}
