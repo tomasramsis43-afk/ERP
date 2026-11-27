@@ -22,6 +22,10 @@ export interface ApplyMovementInput {
   batchNo?: string;
   /** Expiry date for FEFO consumption. */
   expiryDate?: Date;
+  /** Only callers whose actor holds inventory:override_negative may set this. */
+  allowNegative?: boolean;
+  /** Mandatory recorded justification when an oversell drives stock below zero. */
+  negativeStockReason?: string;
 }
 
 export interface ConsumedLayer {
@@ -33,7 +37,8 @@ export interface ConsumedLayer {
 
 /**
  * The only writer of StockBalance / StockMovement. Guarantees:
- *  - stock never goes negative (guarded UPDATE + CHECK constraint),
+ *  - stock never goes negative unless the actor holds inventory:override_negative
+ *    and supplies a recorded reason (guarded UPDATE + application-level approval),
  *  - weighted-average cost is updated under a row lock,
  *  - the same idempotency key never moves stock twice.
  * Always call inside a transaction together with the matching journal posting.
@@ -58,7 +63,7 @@ export class StockService {
   async apply(tx: Tx, input: ApplyMovementInput) {
     if (input.idempotencyKey) {
       const existing = await tx.stockMovement.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
-      if (existing) return { movement: existing, created: false };
+      if (existing) return { movement: existing, created: false, layers: [] as ConsumedLayer[], negativeApproved: false };
     }
     const qty = roundQty(input.quantity);
     if (qty.lte(0)) throw new BadRequestException('Movement quantity must be greater than zero');
@@ -73,6 +78,7 @@ export class StockService {
 
     let unitCost: Decimal;
     let consumed: ConsumedLayer[] = [];
+    let negativeApproved = false;
     if (input.direction === 'IN') {
       unitCost = input.unitCost ? dec(input.unitCost) : avgCost;
       if (input.type !== 'TRANSFER_IN') await this.updateAverageCost(tx, input.productId, avgCost, qty, unitCost);
@@ -96,12 +102,29 @@ export class StockService {
       });
     } else {
       unitCost = avgCost;
-      const updated = await tx.$executeRaw`UPDATE "StockBalance"
-        SET "quantity" = "quantity" - ${qty.toFixed(4)}::numeric
-        WHERE "warehouseId" = ${input.warehouseId} AND "productId" = ${input.productId}
-          AND "quantity" >= ${qty.toFixed(4)}::numeric`;
-      if (updated === 0) {
-        throw new BadRequestException(`Insufficient stock in warehouse ${warehouse.code}`);
+      if (input.allowNegative) {
+        // The caller has already been checked for inventory:override_negative. The reason is
+        // mandatory only when the movement actually drives the balance below zero.
+        await tx.$executeRaw`UPDATE "StockBalance"
+          SET "quantity" = "quantity" - ${qty.toFixed(4)}::numeric
+          WHERE "warehouseId" = ${input.warehouseId} AND "productId" = ${input.productId}`;
+        const [row] = await tx.$queryRaw<{ quantity: Prisma.Decimal }[]>`
+          SELECT "quantity" FROM "StockBalance"
+          WHERE "warehouseId" = ${input.warehouseId} AND "productId" = ${input.productId}`;
+        if (row && dec(row.quantity.toString()).lt(0)) {
+          if (!input.negativeStockReason?.trim()) {
+            throw new BadRequestException('Negative stock requires a recorded reason (negativeStockReason)');
+          }
+          negativeApproved = true;
+        }
+      } else {
+        const updated = await tx.$executeRaw`UPDATE "StockBalance"
+          SET "quantity" = "quantity" - ${qty.toFixed(4)}::numeric
+          WHERE "warehouseId" = ${input.warehouseId} AND "productId" = ${input.productId}
+            AND "quantity" >= ${qty.toFixed(4)}::numeric`;
+        if (updated === 0) {
+          throw new BadRequestException(`Insufficient stock in warehouse ${warehouse.code}`);
+        }
       }
       consumed = await this.consumeLayers(tx, input.warehouseId, input.productId, qty);
     }
@@ -117,11 +140,13 @@ export class StockService {
         source: input.source,
         sourceId: input.sourceId,
         idempotencyKey: input.idempotencyKey,
-        note: input.note,
+        note: negativeApproved
+          ? `Negative stock approved: ${input.negativeStockReason!.trim()}${input.note ? ` | ${input.note}` : ''}`
+          : input.note,
         createdById: input.createdById,
       },
     });
-    return { movement, created: true, layers: consumed };
+    return { movement, created: true, layers: consumed, negativeApproved };
   }
 
   /**
