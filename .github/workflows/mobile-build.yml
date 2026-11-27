@@ -50,12 +50,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          APK="apps/mobile/android/app/build/outputs/apk/release/app-release.apk"
-          test -s "$APK"
+          BUILT="apps/mobile/android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$BUILT"
+          APK="$RUNNER_TEMP/ERP-Mobile.apk"
+          cp "$BUILT" "$APK"
           if gh release view v0.1.0-mobile-apk >/dev/null 2>&1; then
-            gh release upload v0.1.0-mobile-apk "$APK#ERP-Mobile.apk" --clobber
+            gh release upload v0.1.0-mobile-apk "$APK" --clobber
           else
-            gh release create v0.1.0-mobile-apk "$APK#ERP-Mobile.apk" \
+            gh release create v0.1.0-mobile-apk "$APK" \
               --title "ERP Mobile (Representative) APK" \
               --notes "Installable Android APK built from main"
           fi
