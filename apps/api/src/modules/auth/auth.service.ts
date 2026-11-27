@@ -61,9 +61,13 @@ export class AuthService {
   /** Rotating refresh tokens: the presented token is revoked and a new pair is issued. */
   async refresh(refreshToken: string, client: ClientInfo): Promise<TokenPair> {
     const stored = await this.prisma.refreshToken.findUnique({ where: { tokenHash: hashToken(refreshToken) } });
-    if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
-      throw new UnauthorizedException('Invalid refresh token');
+    if (!stored) throw new UnauthorizedException('Invalid refresh token');
+    // Reuse of a revoked token indicates theft: revoke the entire token family for that user.
+    if (stored.revokedAt) {
+      await this.prisma.refreshToken.updateMany({ where: { userId: stored.userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      throw new UnauthorizedException('Refresh token reuse detected; all sessions revoked');
     }
+    if (stored.expiresAt < new Date()) throw new UnauthorizedException('Invalid refresh token');
     const user = await this.prisma.user.findUnique({ where: { id: stored.userId } });
     if (!user || !user.isActive) throw new UnauthorizedException('Invalid refresh token');
 
