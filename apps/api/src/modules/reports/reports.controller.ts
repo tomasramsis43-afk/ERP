@@ -51,6 +51,13 @@ export class ReportsController {
     return this.statements.cashFlow(from, to);
   }
 
+  @Get('vat')
+  @RequirePermissions('accounting:view', 'reports:view')
+  vat(@Query('from') from: string, @Query('to') to: string) {
+    this.need(from, to);
+    return this.statements.vatDeclaration(from, to);
+  }
+
   @Get('aging/:type')
   @RequirePermissions('reports:view')
   agingReport(@Param('type') type: string, @Query('asOf') asOf?: string) {
