@@ -3,11 +3,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp, useToast } from '@/components/Providers';
 import { Badge, Button, Card, DataTable, DateText, DetailGrid, EmptyState, ErrorNote, Field, IconButton, Input, Loading, Modal, PageHeader, Pagination, Select, Tabs, Textarea } from '@/components/ui';
-import { useApi, usePaged } from '@/lib/hooks';
+import { useApi, useOptions, usePaged } from '@/lib/hooks';
 import { post, patch, put } from '@/lib/api';
 import { queryString } from '@/lib/format';
 
-interface User { id: string; email: string; fullName: string; isActive: boolean; locale: string; roles: { role: { code: string; nameAr: string; nameEn: string } }[] }
+interface User { id: string; email: string; fullName: string; isActive: boolean; locale: string; branch: { id: string; code: string; nameAr: string; nameEn: string } | null; roles: { role: { code: string; nameAr: string; nameEn: string } }[] }
 interface Role { id: string; code: string; nameAr: string; nameEn: string; isSystem: boolean; userCount: number; permissionCodes: string[] }
 interface Perm { id: string; code: string; description: string | null }
 interface Setting { key: string; value: unknown }
@@ -49,9 +49,14 @@ function UsersTab() {
   const [statusTarget, setStatusTarget] = useState<User | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const roles = useApi<Role[]>('roles');
+  const branches = useOptions<{ id: string; code: string; nameAr: string; nameEn: string }>(
+    'branches?pageSize=100',
+    (b) => ({ value: b.id, label: `${b.code} · ${lang === 'ar' ? b.nameAr : b.nameEn}` }),
+  );
   const { data, error, loading, reload } = usePaged<User>(`users?${queryString({ page, pageSize })}`);
   useEffect(() => { if (refreshKey) reload(); }, [refreshKey]); // eslint-disable-line
-  const [form, setForm] = useState({ email: '', fullName: '', password: '', roleCodes: [] as string[] });
+  const [form, setForm] = useState({ email: '', fullName: '', password: '', roleCodes: [] as string[], branchId: '' });
+  useEffect(() => { if (creating) setForm({ email: '', fullName: '', password: '', roleCodes: [], branchId: '' }); }, [creating]);
   const [statusForm, setStatusForm] = useState({ isActive: true, reason: '' });
   const [busy, setBusy] = useState(false);
   const [ferr, setFerr] = useState<string | null>(null);
@@ -60,7 +65,7 @@ function UsersTab() {
     e.preventDefault();
     setBusy(true); setFerr(null);
     try {
-      await post('users', form);
+      await post('users', { ...form, ...(form.branchId ? {} : { branchId: undefined }) });
       toast.success(tr('تم إنشاء المستخدم', 'User created'));
       setCreating(false);
       setRefreshKey((n) => n + 1);
@@ -97,6 +102,7 @@ function UsersTab() {
                 { key: 'email', header: tr('البريد', 'Email'), render: (r) => r.email },
                 { key: 'name', header: tr('الاسم', 'Name'), render: (r) => r.fullName },
                 { key: 'roles', header: tr('الأدوار', 'Roles'), render: (r) => r.roles.map((x) => x.role.code).join(', ') },
+                { key: 'branch', header: tr('الفرع', 'Branch'), render: (r) => (r.branch ? (lang === 'ar' ? r.branch.nameAr : r.branch.nameEn) : tr('كل الفروع', 'All branches')) },
                 { key: 'status', header: tr('الحالة', 'Status'), align: 'center', render: (r) => (r.isActive ? <Badge tone="ok">{tr('نشط', 'Active')}</Badge> : <Badge tone="danger">{tr('موقوف', 'Inactive')}</Badge>) },
                 {
                   key: 'actions',
@@ -127,6 +133,12 @@ function UsersTab() {
             <Field label={tr('الأدوار', 'Roles')} required className="col-6">
               <Select multiple value={form.roleCodes} onChange={(e) => setForm({ ...form, roleCodes: Array.from((e.target as HTMLSelectElement).selectedOptions).map((o) => o.value) })} style={{ height: 120 }}>
                 {(roles.data ?? []).map((r) => <option key={r.id} value={r.code}>{r.code} · {lang === 'ar' ? r.nameAr : r.nameEn}</option>)}
+              </Select>
+            </Field>
+            <Field label={tr('الفرع', 'Branch')} className="col-6">
+              <Select value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value })}>
+                <option value="">{tr('كل الفروع (مدير نظام)', 'All branches (system admin)')}</option>
+                {branches.options.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
               </Select>
             </Field>
           </div>
