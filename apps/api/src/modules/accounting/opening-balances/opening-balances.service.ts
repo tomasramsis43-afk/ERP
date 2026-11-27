@@ -51,13 +51,13 @@ export class OpeningBalancesService {
         }
       }
 
-      // One equity balancing line keeps the entry balanced regardless of the mix of parties.
-      lines.push({
-        accountId: acc.OPENING_EQUITY,
-        debit: supplierTotal,
-        credit: customerTotal,
-        description: dto.note ?? 'Opening balances',
-      });
+      // Separate debit/credit equity lines (validateJournal requires exactly one non-zero side per line).
+      if (supplierTotal.gt(0)) {
+        lines.push({ accountId: acc.OPENING_EQUITY, debit: supplierTotal, credit: 0, description: dto.note ?? 'Opening balances' });
+      }
+      if (customerTotal.gt(0)) {
+        lines.push({ accountId: acc.OPENING_EQUITY, debit: 0, credit: customerTotal, description: dto.note ?? 'Opening balances' });
+      }
 
       return this.posting.post(
         {
