@@ -45,6 +45,18 @@ async function seedAccessControl(): Promise<void> {
   }
 }
 
+/** Always ensure a default branch and attach legacy rows; safe on every restart. */
+async function seedMainBranch(): Promise<string> {
+  const branch = await prisma.branch.upsert({
+    where: { code: 'MAIN' },
+    update: { nameAr: 'الفرع الرئيسي', nameEn: 'Main Branch', isActive: true },
+    create: { code: 'MAIN', nameAr: 'الفرع الرئيسي', nameEn: 'Main Branch' },
+  });
+  await prisma.warehouse.updateMany({ where: { branchId: null }, data: { branchId: branch.id } });
+  await prisma.user.updateMany({ where: { branchId: null }, data: { branchId: branch.id } });
+  return branch.id;
+}
+
 async function seedAdmin(): Promise<void> {
   const email = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
   const password = process.env.SEED_ADMIN_PASSWORD;
@@ -53,6 +65,7 @@ async function seedAdmin(): Promise<void> {
     return;
   }
   const role = await prisma.role.findUniqueOrThrow({ where: { code: 'SYSTEM_ADMIN' } });
+  const branch = await prisma.branch.findUniqueOrThrow({ where: { code: 'MAIN' } });
   // Normally an existing admin is left untouched (its password may have been changed after first login).
   // Set SEED_ADMIN_RESET=true for one deploy to force the password (and active flag) to the env values.
   const reset = process.env.SEED_ADMIN_RESET === 'true';
@@ -60,7 +73,7 @@ async function seedAdmin(): Promise<void> {
   const user = await prisma.user.upsert({
     where: { email },
     update: reset ? { passwordHash, isActive: true } : {},
-    create: { email, fullName: 'System Administrator', passwordHash },
+    create: { email, fullName: 'System Administrator', passwordHash, branchId: branch.id },
   });
   if (reset) console.warn(`SEED_ADMIN_RESET=true: password reset for ${email}. Remove this variable afterwards.`);
   await prisma.userRole.upsert({
@@ -150,6 +163,7 @@ async function main(): Promise<void> {
   // Access control (permissions + roles) is always re-synced: new permission codes added
   // to shared-types must reach existing deployments even when the rest of the seed is skipped.
   await seedAccessControl();
+  await seedMainBranch();
 
   const fingerprint = seedFingerprint();
   const stored = await prisma.setting.findUnique({ where: { key: FINGERPRINT_KEY } });
