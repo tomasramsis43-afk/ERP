@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsUUID } from 'class-validator';
 import { AuthUser, CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators';
-import { CreateGeoAreaDto, CreateRouteDto, UpdateRouteDto } from './dto/routes.dto';
+import { CoverageQueryDto, CreateGeoAreaDto, CreateRouteDto, LogVisitDto, SetSequenceDto, UpdateRouteDto, VisitQueryDto } from './dto/routes.dto';
 import { RoutesService } from './routes.service';
 
 class AssignCustomersDto {
@@ -32,6 +32,31 @@ export class RoutesController {
   @RequirePermissions('routes:view')
   list() {
     return this.routes.listRoutes();
+  }
+
+  // Static `routes/visits` paths are declared before `routes/:id`.
+  @Post('routes/visits')
+  @RequirePermissions('routes:log_visit')
+  logVisit(@Body() dto: LogVisitDto, @CurrentUser() u: AuthUser) {
+    return this.routes.logVisit(dto, u.id);
+  }
+
+  @Get('routes/visits')
+  @RequirePermissions('routes:view')
+  visits(@Query() q: VisitQueryDto) {
+    return this.routes.listVisits(q);
+  }
+
+  @Get('routes/:id/coverage')
+  @RequirePermissions('routes:view')
+  coverage(@Param('id', ParseUUIDPipe) id: string, @Query() q: CoverageQueryDto) {
+    return this.routes.coverage(id, q.date);
+  }
+
+  @Put('routes/:id/sequence')
+  @RequirePermissions('routes:update')
+  sequence(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetSequenceDto, @CurrentUser() u: AuthUser) {
+    return this.routes.setSequence(id, dto.customerIds, u.id);
   }
 
   @Get('routes/:id')

@@ -2,7 +2,8 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { CreateGeoAreaDto, CreateRouteDto, UpdateRouteDto } from './dto/routes.dto';
+import { toDate } from '../accounting/dto/journal.dto';
+import { CreateGeoAreaDto, CreateRouteDto, LogVisitDto, UpdateRouteDto, VisitQueryDto } from './dto/routes.dto';
 
 const PARENT_LEVEL = { CITY: null, REGION: 'CITY', DISTRICT: 'REGION' } as const;
 
@@ -102,5 +103,90 @@ export class RoutesService {
     if (id && !(await this.prisma.geoArea.findUnique({ where: { id }, select: { id: true } }))) {
       throw new BadRequestException('Area not found');
     }
+  }
+
+  // ---- visit plan and visit log ------------------------------------------
+
+  /** Sets the visiting order of a route: array position becomes the sequence number (1-based). */
+  async setSequence(routeId: string, customerIds: string[], actorId: string) {
+    if (new Set(customerIds).size !== customerIds.length) throw new BadRequestException('Duplicate customers in the sequence');
+    const route = await this.prisma.route.findUnique({ where: { id: routeId }, select: { id: true } });
+    if (!route) throw new NotFoundException('Route not found');
+    const onRoute = await this.prisma.customer.findMany({ where: { id: { in: customerIds }, routeId }, select: { id: true } });
+    if (onRoute.length !== customerIds.length) throw new BadRequestException('Every customer in the sequence must belong to this route');
+    await this.prisma.$transaction(
+      customerIds.map((id, i) => this.prisma.customer.update({ where: { id }, data: { routeSequence: i + 1 } })),
+    );
+    await this.audit.record({ userId: actorId, action: 'SET_SEQUENCE', entity: 'Route', entityId: routeId, newData: { customers: customerIds.length } });
+    return { updated: customerIds.length };
+  }
+
+  /** Logs (or corrects) the visit of a representative to a customer for a day: one record per representative, customer and day. */
+  async logVisit(dto: LogVisitDto, actorId: string) {
+    const today = toDate(new Date().toISOString());
+    const visitDate = dto.visitDate ? toDate(dto.visitDate) : today;
+    if (visitDate > today) throw new BadRequestException('Cannot log a visit in the future');
+
+    const customer = await this.prisma.customer.findUnique({ where: { id: dto.customerId } });
+    if (!customer || !customer.isActive) throw new BadRequestException('Customer not found or inactive');
+
+    let representativeId = dto.representativeId;
+    if (!representativeId) {
+      const own = await this.prisma.representative.findFirst({ where: { userId: actorId, isActive: true }, select: { id: true } });
+      representativeId = own?.id ?? customer.representativeId ?? undefined;
+    }
+    if (!representativeId) throw new BadRequestException('No representative could be determined for this visit');
+    const rep = await this.prisma.representative.findUnique({ where: { id: representativeId } });
+    if (!rep || !rep.isActive) throw new BadRequestException('Representative not found or inactive');
+
+    const routeId = customer.routeId ?? rep.routeId ?? null;
+    const key = { representativeId_customerId_visitDate: { representativeId, customerId: customer.id, visitDate } };
+    const visit = await this.prisma.routeVisit.upsert({
+      where: key,
+      create: { routeId, customerId: customer.id, representativeId, visitDate, outcome: dto.outcome, note: dto.note, createdById: actorId },
+      update: { outcome: dto.outcome, note: dto.note, routeId, visitedAt: new Date() },
+    });
+    await this.audit.record({
+      userId: actorId, action: 'LOG_VISIT', entity: 'RouteVisit', entityId: visit.id,
+      newData: { customerId: customer.id, representativeId, visitDate: visitDate.toISOString().slice(0, 10), outcome: dto.outcome },
+    });
+    return visit;
+  }
+
+  listVisits(q: VisitQueryDto) {
+    return this.prisma.routeVisit.findMany({
+      where: {
+        ...(q.routeId ? { routeId: q.routeId } : {}),
+        ...(q.representativeId ? { representativeId: q.representativeId } : {}),
+        ...(q.customerId ? { customerId: q.customerId } : {}),
+        ...((q.from || q.to) ? { visitDate: { ...(q.from ? { gte: toDate(q.from) } : {}), ...(q.to ? { lte: toDate(q.to) } : {}) } } : {}),
+      },
+      orderBy: [{ visitDate: 'desc' }, { visitedAt: 'desc' }],
+      take: 500,
+      include: { customer: { select: { id: true, code: true, nameAr: true } }, representative: { select: { id: true, code: true, nameAr: true } } },
+    });
+  }
+
+  /** Who of a route's active customers was visited on a day and who was not (in visiting order). */
+  async coverage(routeId: string, date?: string) {
+    const route = await this.prisma.route.findUnique({ where: { id: routeId }, select: { id: true, code: true, nameAr: true, nameEn: true } });
+    if (!route) throw new NotFoundException('Route not found');
+    const day = date ? toDate(date) : toDate(new Date().toISOString());
+    const [customers, visits] = await Promise.all([
+      this.prisma.customer.findMany({
+        where: { routeId, isActive: true },
+        select: { id: true, code: true, nameAr: true, routeSequence: true },
+        orderBy: [{ routeSequence: { sort: 'asc', nulls: 'last' } }, { nameAr: 'asc' }],
+      }),
+      this.prisma.routeVisit.findMany({ where: { routeId, visitDate: day }, orderBy: { visitedAt: 'desc' } }),
+    ]);
+    const byCustomer = new Map<string, (typeof visits)[number]>();
+    for (const v of visits) if (!byCustomer.has(v.customerId)) byCustomer.set(v.customerId, v);
+    const rows = customers.map((c) => {
+      const v = byCustomer.get(c.id);
+      return { customerId: c.id, code: c.code, nameAr: c.nameAr, sequence: c.routeSequence, visited: Boolean(v), outcome: v?.outcome ?? null, visitedAt: v?.visitedAt ?? null };
+    });
+    const visited = rows.filter((r) => r.visited).length;
+    return { route, date: day.toISOString().slice(0, 10), total: rows.length, visited, notVisited: rows.length - visited, rows };
   }
 }
