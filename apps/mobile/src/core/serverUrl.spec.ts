@@ -15,4 +15,9 @@ describe('normalizeServerUrl', () => {
     expect(() => normalizeServerUrl('http://')).toThrow();
     expect(() => normalizeServerUrl('ht tp://x')).toThrow();
   });
+  it('in a production build defaults to https and refuses plain http', () => {
+    expect(normalizeServerUrl('erp.example.com', false)).toBe('https://erp.example.com/api/v1');
+    expect(normalizeServerUrl('https://erp.example.com', false)).toBe('https://erp.example.com/api/v1');
+    expect(() => normalizeServerUrl('http://192.168.1.10:3001', false)).toThrow('HTTPS is required');
+  });
 });

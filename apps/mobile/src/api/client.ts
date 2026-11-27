@@ -5,7 +5,10 @@ import { DEFAULT_TIMEOUT_MS, NetworkError, errorMessage, fetchWithTimeout, safeJ
 import { ServerResult } from '../core/outbox';
 import { Snapshot, SyncApi } from '../sync/syncEngine';
 
-const DEFAULT_BASE = (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ?? 'http://10.0.2.2:3001/api/v1';
+const EXTRA = Constants.expoConfig?.extra as { apiUrl?: string; allowHttp?: boolean } | undefined;
+/** Plain HTTP (LAN servers) is allowed only in development and preview builds; see app.config.js. */
+const ALLOW_HTTP = EXTRA?.allowHttp === true;
+const DEFAULT_BASE = EXTRA?.apiUrl ?? 'http://10.0.2.2:3001/api/v1';
 const SERVER = 'erp.server';
 const ACCESS = 'erp.access';
 const REFRESH = 'erp.refresh';
@@ -28,12 +31,15 @@ export function onSessionExpired(cb: Listener): () => void {
 }
 
 export async function getServerUrl(): Promise<string> {
-  return (await SecureStore.getItemAsync(SERVER)) ?? DEFAULT_BASE;
+  const stored = await SecureStore.getItemAsync(SERVER);
+  // A plain-http address saved by an older or development build is ignored in a production build.
+  if (stored && (ALLOW_HTTP || /^https:\/\//i.test(stored))) return stored;
+  return DEFAULT_BASE;
 }
 
 /** Accepts what the user typed, validates it, stores the normalised API base URL, and returns it. */
 export async function setServerUrl(input: string): Promise<string> {
-  const url = normalizeServerUrl(input);
+  const url = normalizeServerUrl(input, ALLOW_HTTP);
   await SecureStore.setItemAsync(SERVER, url);
   return url;
 }
