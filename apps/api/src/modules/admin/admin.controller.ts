@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { ArrayMaxSize, IsArray, IsIn, IsISO8601, IsOptional, IsString, Matches, MaxLength, MinLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsDefined, IsIn, IsISO8601, IsOptional, IsString, Matches, MaxLength, MinLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AuthUser, CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators';
 import { AdminService, SettingInput } from './admin.service';
@@ -17,6 +17,7 @@ class SettingItem {
   @Matches(/^[A-Za-z0-9._-]{1,80}$/)
   key!: string;
 
+  @IsDefined()
   value!: unknown;
 }
 
@@ -70,8 +71,6 @@ class UpdateRoleBody {
 export class AdminController {
   constructor(private readonly admin: AdminService) {}
 
-  // ---- settings --------------------------------------------------------
-
   @Get('settings')
   @RequirePermissions('settings:view')
   settings() {
@@ -83,8 +82,6 @@ export class AdminController {
   saveSettings(@Body() body: SettingsBody, @CurrentUser() u: AuthUser) {
     return this.admin.updateSettings(body.settings as unknown as SettingInput[], u.id);
   }
-
-  // ---- fiscal periods --------------------------------------------------
 
   @Get('fiscal-periods')
   @RequirePermissions('accounting:view')
@@ -103,8 +100,6 @@ export class AdminController {
   updatePeriod(@Param('id', ParseUUIDPipe) id: string, @Body() body: UpdatePeriodBody, @CurrentUser() u: AuthUser) {
     return this.admin.updatePeriod(id, body, u.id);
   }
-
-  // ---- roles & permissions ---------------------------------------------
 
   @Get('permissions')
   @RequirePermissions('roles:view')
