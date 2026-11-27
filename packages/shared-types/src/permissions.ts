@@ -21,6 +21,7 @@ export const RESOURCES = [
   'reports',
   'settings',
   'audit',
+  'branches',
 ] as const;
 
 export const ACTIONS = [

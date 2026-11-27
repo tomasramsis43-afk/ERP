@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsEmail, IsString, Matches, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsOptional, IsString, IsUUID, Matches, MinLength } from 'class-validator';
 
 export class CreateUserDto {
   @IsEmail()
@@ -16,6 +16,10 @@ export class CreateUserDto {
   @IsArray()
   @IsString({ each: true })
   roleCodes!: string[];
+
+  /** Defaults to the creator's branch. Leave unset for a system-wide creator. */
+  @IsOptional() @IsUUID()
+  branchId?: string;
 }
 
 export class UpdateUserStatusDto {

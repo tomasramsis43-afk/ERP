@@ -95,7 +95,10 @@ const NAV: NavGroup[] = [
   {
     ar: 'الإدارة',
     en: 'Administration',
-    items: [{ href: '/admin', ar: 'المستخدمون والصلاحيات', en: 'Users & permissions', icon: 'shield', perm: 'users:view' }],
+    items: [
+      { href: '/admin', ar: 'المستخدمون والصلاحيات', en: 'Users & permissions', icon: 'shield', perm: 'users:view' },
+      { href: '/branches', ar: 'الفروع', en: 'Branches', icon: 'building', perm: 'branches:view' },
+    ],
   },
 ];
 
@@ -124,6 +127,7 @@ const TITLES: { prefix: string; ar: string; en: string }[] = [
   { prefix: '/reports', ar: 'التقارير', en: 'Reports' },
   { prefix: '/hr', ar: 'الموارد البشرية', en: 'Human resources' },
   { prefix: '/admin', ar: 'الإدارة والصلاحيات', en: 'Administration' },
+  { prefix: '/branches', ar: 'الفروع', en: 'Branches' },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

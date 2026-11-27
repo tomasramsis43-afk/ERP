@@ -19,13 +19,32 @@ model User {
   isActive     Boolean   @default(true)
   locale       String    @default("ar")
   lastLoginAt  DateTime?
+  branchId     String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  branch        Branch?       @relation(fields: [branchId], references: [id])
   roles         UserRole[]
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]
   representative Representative?
+
+  @@index([isActive])
+}
+
+/// A physical operating unit. Users and warehouses belong to one branch;
+/// an unassigned user sees all branches (system-wide role).
+model Branch {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  nameAr    String
+  nameEn    String
+  address   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  users      User[]
+  warehouses Warehouse[]
 
   @@index([isActive])
 }
@@ -433,7 +452,9 @@ model Warehouse {
   nameEn    String
   type      WarehouseType @default(MAIN)
   isActive  Boolean       @default(true)
+  branchId  String?
 
+  branch        Branch?         @relation(fields: [branchId], references: [id])
   balances      StockBalance[]
   layers        StockLayer[]
   stockCounts   StockCount[]

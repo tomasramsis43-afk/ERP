@@ -4,14 +4,16 @@ import React, { useState } from 'react';
 import { useApp } from '@/components/Providers';
 import { ResourceForm } from '@/components/ResourcePage';
 import { Badge, Card, DataTable, EmptyState, ErrorNote, IconButton, Loading, PageHeader, Button } from '@/components/ui';
-import { useApi } from '@/lib/hooks';
+import { useApi, useOptions } from '@/lib/hooks';
 
+interface Branch { id: string; code: string; nameAr: string; nameEn: string }
 interface Warehouse {
   id: string;
   code: string;
   nameAr: string;
   nameEn: string;
   type: 'MAIN' | 'VEHICLE' | 'BRANCH';
+  branchId: string | null;
   isActive: boolean;
 }
 
@@ -24,6 +26,10 @@ const TYPE_LABEL: Record<string, [string, string]> = {
 export default function WarehousesPage() {
   const { tr, lang } = useApp();
   const { data, error, loading, reload } = useApi<Warehouse[]>('warehouses');
+  const branches = useOptions<Branch>('branches?pageSize=100', (b) => ({
+    value: b.id,
+    label: `${b.code} · ${lang === 'ar' ? b.nameAr : b.nameEn}`,
+  }));
   const [editing, setEditing] = useState<Warehouse | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -49,6 +55,14 @@ export default function WarehousesPage() {
                 render: (r) => {
                   const l = TYPE_LABEL[r.type] ?? [r.type, r.type];
                   return <Badge tone={r.type === 'VEHICLE' ? 'info' : r.type === 'BRANCH' ? 'primary' : 'muted'}>{tr(l[0], l[1])}</Badge>;
+                },
+              },
+              {
+                key: 'branch',
+                header: tr('الفرع', 'Branch'),
+                render: (r) => {
+                  const b = branches.options.find((o) => o.value === r.branchId);
+                  return b?.label ?? '—';
                 },
               },
               {
@@ -98,6 +112,7 @@ export default function WarehousesPage() {
               { value: 'BRANCH', label: tr('فرع', 'Branch') },
             ],
           },
+          { name: 'branchId', label: tr('الفرع', 'Branch'), type: 'select', options: branches.options, col: 'col-4' },
           { name: 'isActive', label: tr('نشط', 'Active'), type: 'checkbox', hideInCreate: true, col: 'col-4' },
         ]}
         onSaved={() => {

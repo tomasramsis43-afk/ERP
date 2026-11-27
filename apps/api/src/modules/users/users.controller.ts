@@ -12,14 +12,14 @@ export class UsersController {
 
   @Get()
   @RequirePermissions('users:view')
-  list(@Query('page') page = '1', @Query('pageSize') pageSize = '25') {
-    return this.users.list(Math.max(1, Number(page) || 1), Math.min(100, Math.max(1, Number(pageSize) || 25)));
+  list(@Query('page') page = '1', @Query('pageSize') pageSize = '25', @CurrentUser() actor: AuthUser) {
+    return this.users.list(Math.max(1, Number(page) || 1), Math.min(100, Math.max(1, Number(pageSize) || 25)), actor);
   }
 
   @Post()
   @RequirePermissions('users:create')
   create(@Body() dto: CreateUserDto, @CurrentUser() actor: AuthUser) {
-    return this.users.create(dto, actor.id);
+    return this.users.create(dto, actor);
   }
 
   @Patch(':id/status')
@@ -29,6 +29,6 @@ export class UsersController {
     @Body() dto: UpdateUserStatusDto,
     @CurrentUser() actor: AuthUser,
   ) {
-    return this.users.setActive(id, dto.isActive, dto.reason, actor.id);
+    return this.users.setActive(id, dto.isActive, dto.reason, actor);
   }
 }
