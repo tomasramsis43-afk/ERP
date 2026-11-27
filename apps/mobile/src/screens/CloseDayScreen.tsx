@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, Text, TextInput, Pressable, View } from 'react-native';
 import { get, post } from '../api/client';
 import { Product } from '../core/cart';
+import { NetworkError } from '../core/http';
 import { local, RepProfile, store } from '../db/database';
 import { pick, t } from '../i18n';
 import { useTheme } from './theme';
@@ -34,6 +35,7 @@ export function CloseDayScreen({ version, onClosed }: { version: number; onClose
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const closing = useRef(false);
 
   const load = useCallback(async () => {
     setRep(await local.rep());
@@ -52,7 +54,7 @@ export function CloseDayScreen({ version, onClosed }: { version: number; onClose
       setPreview(p); setDeclared(''); setCounts({}); setReason('');
     } catch (e) {
       setPreview(null);
-      setError(e instanceof TypeError ? t('needOnline') : (e as Error).message);
+      setError(e instanceof NetworkError ? t('needOnline') : (e as Error).message);
     } finally { setBusy(false); }
   }
 
@@ -65,7 +67,9 @@ export function CloseDayScreen({ version, onClosed }: { version: number; onClose
   const name = useMemo(() => (id: string) => { const p = products.get(id); return p ? pick(p.nameAr, p.nameEn) : id; }, [products]);
 
   async function close() {
+    if (closing.current) return;
     if (!rep || !preview || !ready) return Alert.alert(t('closeDay'), t('fillAll'));
+    closing.current = true;
     setBusy(true); setError(null);
     try {
       await post(`/representatives/${rep.id}/close-day`, {
@@ -78,8 +82,8 @@ export function CloseDayScreen({ version, onClosed }: { version: number; onClose
       setPreview(null);
       onClosed();
     } catch (e) {
-      setError(e instanceof TypeError ? t('needOnline') : (e as Error).message);
-    } finally { setBusy(false); }
+      setError(e instanceof NetworkError ? t('needOnline') : (e as Error).message);
+    } finally { closing.current = false; setBusy(false); }
   }
 
   return (
