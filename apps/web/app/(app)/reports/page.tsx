@@ -25,7 +25,8 @@ interface ProfitReport { from: string; to: string; dimension: string; rows: Prof
 interface ValRow { warehouseId: string; warehouseNameAr: string; warehouseNameEn: string; productId: string; productCode: string; productNameAr: string; productNameEn: string; quantity: string; avgCost: string; value: string }
 interface GlPair { stockValue: string; glBalance: string; difference: string }
 interface ValuationReport { totalValue: string; rows: ValRow[]; glComparison: { inventory: GlPair; vehicleStock: GlPair } | null }
-interface LowRow { productId: string; code: string; nameAr: string; nameEn: string; onHand: string; reorderLevel: string; shortfall: string }
+interface LowRow { productId: string; code: string; nameAr: string; nameEn: string; onHand: string; reorderLevel: string; minLevel: string; shortfall: string; belowMin: boolean }
+interface OverRow { productId: string; code: string; nameAr: string; nameEn: string; onHand: string; maxLevel: string; excess: string; excessValue: string }
 interface SlowRow { productId: string; code: string; nameAr: string; nameEn: string; quantity: string; value: string; lastSaleDate: string | null }
 interface SlowReport { days: number; rows: SlowRow[] }
 
@@ -46,7 +47,7 @@ export default function ReportsPage() {
   const [to, setTo] = useState(today);
   const [asOf, setAsOf] = useState(today);
   const [dimension, setDimension] = useState<'product' | 'customer' | 'area'>('product');
-  const [invView, setInvView] = useState<'valuation' | 'low' | 'slow'>('valuation');
+  const [invView, setInvView] = useState<'valuation' | 'low' | 'over' | 'slow'>('valuation');
   const [slowDays, setSlowDays] = useState('90');
   const [exportName, setExportName] = useState('income-statement');
   const [exportFmt, setExportFmt] = useState<'xlsx' | 'pdf'>('xlsx');
@@ -61,6 +62,7 @@ export default function ReportsPage() {
 
   const valuation = useApi<ValuationReport>(tab === 'inventory' && invView === 'valuation' ? 'reports/inventory/valuation' : null);
   const lowStock = useApi<LowRow[]>(tab === 'inventory' && invView === 'low' ? 'reports/inventory/low-stock' : null);
+  const overstock = useApi<OverRow[]>(tab === 'inventory' && invView === 'over' ? 'reports/inventory/overstock' : null);
   const slow = useApi<SlowReport>(tab === 'inventory' && invView === 'slow' ? `reports/inventory/slow-moving?days=${encodeURIComponent(slowDays || '90')}` : null);
 
   const exportUrl = (name: string) => `reports/export/${name}?format=${exportFmt}&lang=${exportFmt === 'pdf' ? 'en' : exportLang}&${name.includes('balance') || name.includes('aging') ? `asOf=${asOf}` : `from=${from}&to=${to}`}`;
@@ -255,9 +257,10 @@ export default function ReportsPage() {
       {tab === 'inventory' ? (
         <>
           <div className="toolbar" style={{ marginBottom: 12 }}>
-            <Select value={invView} onChange={(e) => setInvView(e.target.value as 'valuation' | 'low' | 'slow')} style={{ width: 'auto', minWidth: 190 }}>
+            <Select value={invView} onChange={(e) => setInvView(e.target.value as 'valuation' | 'low' | 'over' | 'slow')} style={{ width: 'auto', minWidth: 190 }}>
               <option value="valuation">{tr('تقييم المخزون', 'Stock valuation')}</option>
               <option value="low">{tr('أصناف تحت حد الطلب', 'Low stock')}</option>
+              <option value="over">{tr('أصناف فوق الحد الأقصى', 'Overstock')}</option>
               <option value="slow">{tr('أصناف راكدة', 'Slow-moving')}</option>
             </Select>
             {invView === 'slow' ? (
@@ -314,9 +317,31 @@ export default function ReportsPage() {
                     { key: 'name', header: tr('الصنف', 'Product'), render: (r) => (lang === 'ar' ? r.nameAr : r.nameEn || r.nameAr) },
                     { key: 'on', header: tr('المتاح', 'On hand'), align: 'end', render: (r) => <Qty value={r.onHand} /> },
                     { key: 'lvl', header: tr('حد إعادة الطلب', 'Reorder level'), align: 'end', render: (r) => <Qty value={r.reorderLevel} /> },
+                    { key: 'min', header: tr('الحد الأدنى', 'Minimum'), align: 'end', render: (r) => <Qty value={r.minLevel} /> },
                     { key: 'short', header: tr('العجز', 'Shortfall'), align: 'end', render: (r) => <Badge tone="danger"><Qty value={r.shortfall} /></Badge> },
+                    { key: 'flag', header: tr('الحالة', 'Status'), render: (r) => (r.belowMin ? <Badge tone="danger">{tr('تحت الحد الأدنى', 'Below minimum')}</Badge> : <Badge tone="warn">{tr('عند حد الطلب', 'At reorder')}</Badge>) },
                   ]}
                   empty={<EmptyState title={tr('لا توجد أصناف تحت حد الطلب', 'No products below their reorder level')} />}
+                />
+              </Card>
+            ) : null
+          ) : null}
+
+          {invView === 'over' ? (
+            overstock.loading && !overstock.data ? <Loading /> : overstock.error ? <ErrorNote error={overstock.error} /> : overstock.data ? (
+              <Card>
+                <DataTable<OverRow>
+                  rows={overstock.data}
+                  rowKey={(r) => r.productId}
+                  columns={[
+                    { key: 'code', header: tr('الكود', 'Code'), width: '110px', render: (r) => <span className="tree-code">{r.code}</span> },
+                    { key: 'name', header: tr('الصنف', 'Product'), render: (r) => (lang === 'ar' ? r.nameAr : r.nameEn || r.nameAr) },
+                    { key: 'on', header: tr('المتاح', 'On hand'), align: 'end', render: (r) => <Qty value={r.onHand} /> },
+                    { key: 'max', header: tr('الحد الأقصى', 'Maximum'), align: 'end', render: (r) => <Qty value={r.maxLevel} /> },
+                    { key: 'exc', header: tr('الزيادة', 'Excess'), align: 'end', render: (r) => <Badge tone="warn"><Qty value={r.excess} /></Badge> },
+                    { key: 'val', header: tr('قيمة الزيادة', 'Excess value'), align: 'end', render: (r) => <Money value={r.excessValue} /> },
+                  ]}
+                  empty={<EmptyState title={tr('لا توجد أصناف فوق الحد الأقصى', 'No products above their maximum')} />}
                 />
               </Card>
             ) : null

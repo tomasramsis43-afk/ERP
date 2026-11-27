@@ -86,6 +86,13 @@ export class ReportsController {
     return this.inventoryReports.lowStock(warehouseId);
   }
 
+  /** Products holding more stock than their maxLevel. */
+  @Get('inventory/overstock')
+  @RequirePermissions('reports:view')
+  overstock(@Query('warehouseId') warehouseId?: string) {
+    return this.inventoryReports.overstock(warehouseId);
+  }
+
   @Get('inventory/slow-moving')
   @RequirePermissions('reports:view')
   slowMoving(@Query('days') days?: string) {

@@ -44,6 +44,8 @@ interface Product {
   retailPrice: string;
   wholesalePrice: string;
   reorderLevel: string;
+  minLevel: string;
+  maxLevel: string;
   isActive: boolean;
   units?: ProductUnit[];
   createdAt?: string;
@@ -60,6 +62,8 @@ const EMPTY: Record<string, string | boolean> = {
   retailPrice: '',
   wholesalePrice: '',
   reorderLevel: '',
+  minLevel: '',
+  maxLevel: '',
   isActive: true,
 };
 
@@ -200,6 +204,8 @@ function ProductForm({ open, product, onClose, onSaved }: { open: boolean; produ
         retailPrice: product.retailPrice,
         wholesalePrice: product.wholesalePrice,
         reorderLevel: product.reorderLevel,
+        minLevel: product.minLevel,
+        maxLevel: product.maxLevel,
         isActive: product.isActive,
       });
       setUnitRows((product.units ?? []).filter((u) => u.unitId !== product.baseUnitId).map((u) => ({ unitId: u.unitId, factor: u.factor, barcode: u.barcode ?? '' })));
@@ -276,6 +282,12 @@ function ProductForm({ open, product, onClose, onSaved }: { open: boolean; produ
           </Field>
           <Field label={tr('حد إعادة الطلب', 'Reorder level')} className="col-4">
             <Input type="number" min="0" step="0.0001" dir="ltr" value={String(values.reorderLevel)} onChange={(e) => set('reorderLevel', e.target.value)} />
+          </Field>
+          <Field label={tr('الحد الأدنى', 'Minimum stock')} className="col-4">
+            <Input type="number" min="0" step="0.0001" dir="ltr" placeholder="0" value={String(values.minLevel)} onChange={(e) => set('minLevel', e.target.value)} />
+          </Field>
+          <Field label={tr('الحد الأقصى', 'Maximum stock')} className="col-4">
+            <Input type="number" min="0" step="0.0001" dir="ltr" placeholder="0" value={String(values.maxLevel)} onChange={(e) => set('maxLevel', e.target.value)} />
           </Field>
           <Field label={tr('سعر الشراء', 'Purchase price')} className="col-4">
             <Input type="number" min="0" step="0.01" dir="ltr" value={String(values.purchasePrice)} onChange={(e) => set('purchasePrice', e.target.value)} />
@@ -384,6 +396,8 @@ function ProductDetail({ product, onChanged }: { product: Product; onChanged: ()
               { label: tr('سعر القطاعي', 'Retail price'), value: <Money value={product.retailPrice} /> },
               { label: tr('سعر الجملة', 'Wholesale price'), value: <Money value={product.wholesalePrice} /> },
               { label: tr('حد الطلب', 'Reorder level'), value: <Qty value={product.reorderLevel} /> },
+              { label: tr('الحد الأدنى', 'Minimum stock'), value: <Qty value={product.minLevel} /> },
+              { label: tr('الحد الأقصى', 'Maximum stock'), value: <Qty value={product.maxLevel} /> },
               { label: tr('أضيف في', 'Created'), value: <DateText value={product.createdAt} /> },
             ]}
           />
