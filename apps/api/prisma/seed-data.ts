@@ -62,6 +62,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, PermissionCode[]> = {
     ...crud('customers', ['view']),
     ...crud('representatives', ['view']),
     ...crud('routes', ['view']),
+    'routes:log_visit',
     ...crud('products', ['view']),
     ...crud('sales', ['view', 'create']),
     ...crud('inventory', ['view']),

@@ -41,6 +41,7 @@ export const SPECIAL_PERMISSIONS = [
   'sales:approve_return',
   'accounting:adjust_balance',
   'reports:view_all',
+  'routes:log_visit',
 ] as const;
 
 export type Resource = (typeof RESOURCES)[number];
