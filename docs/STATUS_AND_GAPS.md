@@ -15,6 +15,8 @@ Compared with the master specification. "Missing" means no schema/API for it exi
 - Persistent failed-login lockout after 5 attempts for 15 minutes (`LoginAttempt` table, survives restarts).
 - Shared Redis-backed throttling when `REDIS_URL` is set; local in-memory fallback and `THROTTLE_TTL`/`THROTTLE_LIMIT` overrides.
 - Manual journal lines support `partyType`/`partyId` (opening balances for customers/suppliers).
+- Mobile: offline banner driven by NetInfo, plus existing sale/return/collection, van stock, day summary, and day-closing screens with offline outbox.
+- Web: customer and representative detail screens now include route-visit history; representative details also show custody, vehicle stock, closings, and commissions.
 - Seed always syncs access control so new permissions reach existing deployments.
 - Cash-box day closing and physical-cash reconciliation.
 - Credit-limit override with recorded approval, product min/max levels, stock count sessions, route visit log, sales/purchase orders and quotations.
@@ -23,9 +25,9 @@ Compared with the master specification. "Missing" means no schema/API for it exi
 | Area | State |
 |---|---|
 | Arabic PDF export | Not supported (Excel works; English PDF works) |
-| Mobile: returns, day closing, day summary, receipts, van stock view | Missing screens (sale, collection, customers, sync exist) |
+| Mobile: dedicated receipt detail/print screen | Partial (receipts are generated and shared from Day Summary) |
 | Mobile real-device test pass | Not done |
-| Web: customer/supplier/representative detail screens for custody and visits | Partial |
+| Web URL-addressable detail pages | Partial (customer/supplier/representative `?id=` links now open details; products still use a custom page) |
 | Web document creation exercised in a browser | Partially done (dialogs exist) |
 | Redis deployment | Optional; shared throttling requires `REDIS_URL` to be configured |
 

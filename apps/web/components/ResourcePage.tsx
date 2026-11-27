@@ -48,6 +48,8 @@ export interface ResourcePageProps<T> {
   createDefaults?: Record<string, unknown>;
   /** Opens the create form when the page loads (used by the global "new" menu). */
   autoCreate?: boolean;
+  /** Opens the matching row's detail when it appears in the first loaded page. */
+  initialDetailId?: string | null;
   emptyTitle?: string;
   emptySub?: string;
   onChanged?: () => void;
@@ -77,6 +79,7 @@ export function ResourcePage<T extends { id: string }>({
   toolbarExtra,
   createDefaults,
   autoCreate,
+  initialDetailId,
   emptyTitle,
   emptySub,
   onChanged,
@@ -105,6 +108,16 @@ export function ResourcePage<T extends { id: string }>({
     [endpoint, page, pageSize, q, filterValues, extraQuery, searchable],
   );
   const { data, error, loading, reload } = usePaged<T>(path);
+  const autoOpened = useRef(false);
+
+  useEffect(() => {
+    if (!initialDetailId || autoOpened.current || !renderDetail || !data?.items?.length) return;
+    const row = data.items.find((item) => item.id === initialDetailId);
+    if (row) {
+      autoOpened.current = true;
+      setDetail(row);
+    }
+  }, [initialDetailId, data, renderDetail]);
 
   function refresh() {
     reload();

@@ -21,6 +21,7 @@ const dict = {
     cashRefunds: 'مرتجعات نقدية', returnsGood: 'مرتجعات سليمة', returnsDamaged: 'مرتجعات تالفة', operations: 'عدد العمليات', share: 'مشاركة الإيصال', receipt: 'إيصال', date: 'التاريخ', ref: 'مرجع',
     receiptCashSale: 'إيصال بيع نقدي', receiptCreditSale: 'إيصال بيع آجل', receiptReturnGood: 'إيصال مرتجع سليم', receiptReturnDamaged: 'إيصال مرتجع تالف', receiptCollection: 'إيصال تحصيل',
     returnNote: 'المرتجع يُخصم من حساب العميل والتالف لا يعود للمخزون', noOps: 'لا توجد عمليات اليوم', allSynced: 'كل العمليات أُرسلت', unsyncedOps: 'عمليات لم تُرسل بعد',
+    offline: 'لا يوجد اتصال', offlineHint: 'تُحفظ العمليات محليًا وتُرسل عند عودة الاتصال',
   },
   en: {
     appName: 'Field Rep',
@@ -40,6 +41,7 @@ const dict = {
     cashRefunds: 'Cash refunds', returnsGood: 'Good returns', returnsDamaged: 'Damaged returns', operations: 'Operations', share: 'Share receipt', receipt: 'Receipt', date: 'Date', ref: 'Ref',
     receiptCashSale: 'Cash sale receipt', receiptCreditSale: 'Credit sale receipt', receiptReturnGood: 'Good return receipt', receiptReturnDamaged: 'Damaged return receipt', receiptCollection: 'Collection receipt',
     returnNote: 'The return is credited to the customer; damaged goods are not restocked', noOps: 'No operations today', allSynced: 'Everything is sent', unsyncedOps: 'Operations not sent yet',
+    offline: 'Offline', offlineHint: 'Operations are saved locally and sent when you reconnect',
   },
 } as const;
 

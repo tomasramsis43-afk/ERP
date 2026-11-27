@@ -4,9 +4,10 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from './Providers';
 import { ResourcePage, FieldDef } from './ResourcePage';
 import { Badge, Card, DataTable, DateText, DetailGrid, ErrorNote, Loading, Money, Select, Tabs, Button, SummaryStrip } from './ui';
-import { useApi, useOptions } from '@/lib/hooks';
+import { useApi, useOptions, useUrlParam } from '@/lib/hooks';
 import { formatMoney } from '@/lib/format';
 import { Icon } from './Icon';
+import { VisitsTab } from './VisitsTab';
 
 type Kind = 'customers' | 'suppliers';
 
@@ -56,6 +57,7 @@ interface Aging {
 /** Customers and suppliers share the same screen; only the fields and endpoints differ. */
 export function PartyPage({ kind }: { kind: Kind }) {
   const { tr, lang } = useApp();
+  const initialDetailId = useUrlParam('id');
   const isCustomer = kind === 'customers';
   const title = isCustomer ? tr('العملاء', 'Customers') : tr('الموردون', 'Suppliers');
 
@@ -158,6 +160,7 @@ export function PartyPage({ kind }: { kind: Kind }) {
       fields={fields}
       createLabel={isCustomer ? tr('عميل جديد', 'New customer') : tr('مورد جديد', 'New supplier')}
       detailTitle={(r) => `${r.code} · ${lang === 'ar' ? r.nameAr : r.nameEn || r.nameAr}`}
+      initialDetailId={initialDetailId}
       renderDetail={(row) => <PartyDetail kind={kind} party={row} />}
       toEditValues={(r) => ({
         ...r,
@@ -171,7 +174,7 @@ export function PartyPage({ kind }: { kind: Kind }) {
 
 function PartyDetail({ kind, party }: { kind: Kind; party: Party }) {
   const { tr, lang } = useApp();
-  const [tab, setTab] = useState<'info' | 'statement' | 'aging'>('info');
+  const [tab, setTab] = useState<'info' | 'statement' | 'aging' | 'visits'>('info');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const qs = useMemo(() => {
@@ -194,6 +197,7 @@ function PartyDetail({ kind, party }: { kind: Kind; party: Party }) {
           { id: 'info', label: tr('البيانات', 'Details') },
           { id: 'statement', label: tr('كشف الحساب', 'Statement') },
           { id: 'aging', label: tr('أعمار الديون', 'Aging') },
+          ...(kind === 'customers' ? [{ id: 'visits' as const, label: tr('الزيارات', 'Visits') }] : []),
         ]}
       />
 
@@ -296,6 +300,8 @@ function PartyDetail({ kind, party }: { kind: Kind; party: Party }) {
           ) : null}
         </div>
       ) : null}
+
+      {tab === 'visits' && kind === 'customers' ? <VisitsTab customerId={party.id} /> : null}
     </div>
   );
 }
