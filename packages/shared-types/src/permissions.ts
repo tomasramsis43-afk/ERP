@@ -39,6 +39,7 @@ export const SPECIAL_PERMISSIONS = [
   'sales:credit_sale',
   'sales:override_credit_limit',
   'sales:approve_return',
+  'sales:approve_discount',
   'accounting:adjust_balance',
   'reports:view_all',
   'routes:log_visit',
