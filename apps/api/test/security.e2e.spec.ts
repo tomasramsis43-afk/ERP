@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { PrismaClient } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
@@ -11,7 +12,9 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 d('security (requires seeded PostgreSQL)', () => {
   let app: INestApplication;
   let http: ReturnType<typeof request>;
+  let prisma: PrismaClient;
   let admin: string;
+  let bruteEmail: string;
   const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 
   beforeAll(async () => {
@@ -21,10 +24,16 @@ d('security (requires seeded PostgreSQL)', () => {
     app.useGlobalFilters(new AllExceptionsFilter());
     await app.init();
     http = request(app.getHttpServer());
+    prisma = new PrismaClient();
     admin = (await http.post('/auth/login').send({ email: process.env.SEED_ADMIN_EMAIL, password: process.env.SEED_ADMIN_PASSWORD }).expect(200)).body.accessToken;
+    bruteEmail = `brute-${uid()}@test.local`;
+    await http.post('/users').set(bearer(admin)).send({ email: bruteEmail, fullName: 'Brute test', password: 'long-password-123', roleCodes: ['REPRESENTATIVE'] }).expect(201);
   });
 
   afterAll(async () => {
+    // Lockout is now persisted, so never leave a locked account behind for other suites.
+    await prisma.loginAttempt.deleteMany({ where: { email: bruteEmail } });
+    await prisma.$disconnect();
     await app.close();
   });
 
@@ -90,15 +99,15 @@ d('security (requires seeded PostgreSQL)', () => {
     await http.get('/accounting/reports/trial-balance').set(bearer(t)).expect(403);
   });
 
-  // Last on purpose: it exhausts this app instance's login throttle.
+  // Uses a disposable account: lockout is persistent, so the seeded admin must never be locked.
   it('brute-force login attempts are throttled and never reveal whether the email exists', async () => {
     const unknown = await http.post('/auth/login').send({ email: `nobody-${uid()}@test.local`, password: 'whatever-123' });
-    const wrong = await http.post('/auth/login').send({ email: process.env.SEED_ADMIN_EMAIL, password: 'wrong-password-123' });
+    const wrong = await http.post('/auth/login').send({ email: bruteEmail, password: 'wrong-password-123' });
     expect(unknown.status).toBe(401);
     expect(wrong.status).toBe(401);
     expect(unknown.body.message).toBe(wrong.body.message);
     const codes: number[] = [];
-    for (let i = 0; i < 14; i++) codes.push((await http.post('/auth/login').send({ email: process.env.SEED_ADMIN_EMAIL, password: `wrong-${i}-password` })).status);
+    for (let i = 0; i < 14; i++) codes.push((await http.post('/auth/login').send({ email: bruteEmail, password: `wrong-${i}-password` })).status);
     expect(codes).toContain(429);
   });
 });
