@@ -1,58 +1,77 @@
-# Master audit report (session of 2026-11-27)
+# Master audit report
 
-Status legend: PASS / FAIL / BLOCKED / NOT TESTED. Scope this session: repository discovery and the mobile app.
-The API, database and web were **read, not changed or executed** (see Blocked).
+Work date: 2026-11-27/28. Branch: `claude/master-audit-and-hardening` (12 commits on top of `main` 72d27f1).
+Status legend: PASS / FAIL / BLOCKED / NOT TESTED. Nothing below is claimed beyond what was actually run.
 
-## Verified in this environment
+## Scope actually covered
+| Area | Depth |
+|---|---|
+| Mobile app (`apps/mobile`) | Read in full, fixed, unit-tested, type-checked. Not run on a device or emulator |
+| API (`apps/api`) | Read selectively (guards, bootstrap, sync, stock, purchase cancel). One change (deny-by-default guard), tested without a database |
+| Database / Prisma schema / migrations | Only grepped (idempotency keys). Not audited, not executed |
+| Accounting engine package | Tests re-run (6 PASS). Journal/posting services not audited |
+| Web (`apps/web`) | Type-check only (PASS). Not audited |
+| CI, Docker, release | Mobile config reviewed and changed; workflows read, not changed |
+
+## Verification results
 | Check | Result |
 |---|---|
-| shared-types, accounting-engine build | PASS |
-| accounting-engine unit tests (6) | PASS |
+| shared-types and accounting-engine build | PASS |
+| accounting-engine unit tests | PASS (6) |
 | mobile typecheck | PASS |
-| mobile unit tests | PASS (46; was 24) |
+| mobile unit tests | PASS (60 tests, 13 suites; was 24) |
 | web typecheck | PASS |
-| API typecheck | BLOCKED: `prisma generate` cannot download its engine (proxy 403) |
-| API / database test suites | BLOCKED: no Docker daemon, no Prisma engine; they run in CI (PostgreSQL 16) |
-| Android / iOS build | NOT TESTED |
-| Real device / emulator | NOT TESTED |
+| API guard + route-coverage specs (no DB needed) | PASS (8) |
+| API full typecheck | BLOCKED: `prisma generate` cannot download its engine here (proxy 403) |
+| API / database test suites | BLOCKED: no Prisma engine, no Docker daemon. They run in CI on PostgreSQL 16 |
+| Android build / iOS build | NOT TESTED (needs EAS) |
+| Real device or emulator (camera, SQLite, PDF, RTL, sync) | NOT TESTED |
+| Performance volumes (10k products etc.) | NOT TESTED |
+| E2E scenarios | NOT TESTED |
 
-## Findings fixed (branch `claude/master-audit-and-hardening`)
-1. Device id was the constant `device-local` for every install -> persisted random UUID per install.
-2. Sale/return/collection saved outbox, receipt and van stock in separate writes -> one SQLite transaction.
-3. No guard against a double tap on Save -> guarded; a failed save shows an error and records nothing.
-4. API client had no timeout/cancel, parallel 401s could reuse a rotated refresh token, a gateway HTML error crashed
-   the JSON parser, and network loss could be treated as a lost session -> fixed (details in the commit).
+## Fixed (each with tests where logic is testable)
+Mobile
+1. Constant device id `device-local` -> persisted random UUID per installation.
+2. Sale/return/collection saved in 3 separate writes -> one SQLite transaction; double-tap guard; failed save records nothing.
+3. **Data loss race**: whole-queue rewrite after a sync deleted sales saved during the sync; the post-sync snapshot could
+   overwrite local stock. Replaced by per-operation `applyResults` and a snapshot write that checks "nothing pending"
+   inside the same transaction. All writes serialized through one queue.
+4. API client: timeout + cancellation, one shared token refresh, safe JSON, session ends only on explicit 401/403,
+   login screen on expiry (outbox untouched).
+5. SQLite schema versioning (`PRAGMA user_version`), startup integrity check that only warns.
+6. Virtualized product picker with Arabic/English/code search.
+7. Automatic sync on reconnect (single run, exponential backoff 5 s..5 min).
+8. Barcode scanner (product and pack-unit barcodes; `unitId` now sent to the server).
+9. PDF receipts and day summary (RTL/LTR, escaped, offline).
+10. Per-operation states, confirmation before discarding a rejected operation, 4 tabs + More navigation.
+11. Release config: HTTPS-only production builds, new application id `com.erpfield.app` (app was never published).
+12. Regression I introduced and fixed: offline message in day closing.
 
-5. SQLite had no schema versioning -> `PRAGMA user_version` migrations (step 1 = original schema, step 2 = outbox index);
-   startup integrity check warns and never deletes data.
-6. Product picker rendered every product with `map` inside a `ScrollView` -> modal `FlatList` with Arabic/English/code
-   search (diacritic and alef/ya folding), capped at 100 rows.
-7. Sync was manual only -> automatic sync on reconnect, one shared run (no overlapping pushes), exponential backoff
-   5s..5min while anything is pending or failing.
+API
+13. `PermissionsGuard` was fail-open (a route without a rule was open to every logged-in user). Now deny-by-default with
+    explicit `@AnyAuthenticated()`; a spec scans all controllers (mutation-checked).
 
-## API: static review only (code read, NOT executed: BLOCKED, see above)
-- Global guards: throttler, JWT, permissions. Every handler except auth/health carries a permission requirement.
-- Raw SQL uses tagged templates (parameterized); no `*Unsafe` calls found.
-- helmet, strict ValidationPipe (whitelist + forbidNonWhitelisted), CORS closed by default (empty origin list),
-  secrets must be set and not `CHANGE_ME*`.
-- Sync idempotency: `sync:<opId>` is a unique `idempotencyKey` on the business document, so concurrent retries of one
-  operation cannot create it twice.
-- Weakness: `PermissionsGuard` is fail-open (an authenticated route with no permission metadata is allowed). Today no such
-  route exists; a new controller that forgets the decorator would be open to every logged-in user. Recommended: deny by
-  default with an explicit `@AnyAuthenticated()` marker. Not changed because it cannot be verified without the API tests.
-- Not reviewed: company/branch isolation (the schema has no Branch model), IDOR on id-based routes, lockout internals,
-  accounting posting, inventory costing, Prisma migrations.
+Docs: `STATUS_AND_GAPS.md` corrected (mobile screens exist).
 
-## Findings open (not fixed)
-- `android.usesCleartextTraffic: true` and `http://` server addresses are accepted. Left as is: the app is designed for
-  LAN servers typed by the user. Decision needed: allow HTTP only in preview builds.
-- Application id `com.example.erpfield` (Android and iOS). Changing a published id breaks updates; confirm whether a
-  build was ever published before changing.
-- Mobile pull is a full snapshot (no incremental sync); no CONFLICT/SYNCING states shown to the rep.
-- Eight horizontally scrolling tabs; no barcode scanner, push notifications, PDF/print.
-- The customer list (horizontal `FlatList`) and sale cart still render every line; fine for a normal cart size.
-- Known from README: no Arabic PDF, FIFO, batches/expiry, multi-branch, Redis-backed throttling.
+## Findings not fixed
+| # | Finding | Why not fixed |
+|---|---|---|
+| A | Cancelling a purchase takes stock out at the **current average cost**, while the journal reversal mirrors the original entry at the original cost, and the average is not recomputed. Example: buy 10 @10, buy 10 @20 (avg 15), cancel the first: stock valued 10 x 15 = 150, ledger inventory = 200 - 100 = 100 | Costing rule change needs database tests and an accounting decision. Static reasoning only (not executed) |
+| B | Mobile pull is a full snapshot; no incremental sync, no CONFLICT state | Needs server API changes testable only with the database |
+| C | Local van stock is an estimate computed from the screen's in-memory copy; it self-corrects when the queue is empty and the next snapshot arrives | By design; documented |
+| D | No branch model (no Branch table) so branch isolation cannot exist | Schema decision |
+| E | Push notifications | Needs Expo/FCM credentials and a server endpoint for tokens |
+| F | Arabic PDF export of server reports, FIFO, batches/expiry UI | See README known limitations |
+| G | Accounting, treasury, HR, payroll, VAT, reports, web screens, Prisma migrations | Not audited (needs a running API) |
 
-## Not audited yet
-Accounting engine integration, inventory, NestJS endpoints (RBAC, IDOR, company isolation), Prisma schema, web
-screens, CI workflows, performance volumes. They need a working Prisma engine and PostgreSQL to verify.
+## Verified by reading only (static, not executed)
+- Every controller route except auth/health carries a permission rule; login is throttled (10/min).
+- Raw SQL uses tagged templates (parameterized).
+- Sync idempotency: `sync:<opId>` is a unique `idempotencyKey` on the business document, so a concurrent retry
+  cannot create it twice.
+- Stock: guarded `UPDATE` prevents negative stock; all 11 call sites lock `StockBalance` before `apply`, so lock order is
+  consistent (no deadlock between them).
+
+## Production readiness
+**NOT READY.** Blocking items: API tests unverified in this session (run CI on the branch), no device test of the
+mobile app, no Android/iOS build, finding A open. See `KNOWN_LIMITATIONS.md` and `IMPLEMENTATION_ROADMAP.md`.
