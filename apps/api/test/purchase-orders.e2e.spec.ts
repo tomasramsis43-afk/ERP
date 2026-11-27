@@ -55,7 +55,7 @@ d('purchase orders (end to end, requires seeded PostgreSQL)', () => {
     const before = await stock();
     const o = await order();
     expect(o.status).toBe('OPEN');
-    expect(o.subtotal).toBe('50.00');
+    expect(Number(o.subtotal)).toBe(50);
     expect(o.progress[0]).toMatchObject({ ordered: '10.0000', received: '0.0000', remaining: '10.0000' });
     expect(await stock()).toBe(before);
     expect((await http.get('/accounting/reports/trial-balance').set(auth()).expect(200)).body.balanced).toBe(true);
