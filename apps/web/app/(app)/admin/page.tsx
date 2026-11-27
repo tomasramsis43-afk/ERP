@@ -313,6 +313,8 @@ function SettingsTab() {
                     <option value="WEIGHTED_AVERAGE">{tr('متوسط مرجح', 'Weighted average')}</option>
                     <option value="FIFO">{tr('أول ما يدخل أول ما يخرج (FIFO)', 'First in, first out (FIFO)')}</option>
                   </Select>
+                ) : s.key === 'sales.discountApprovalThreshold' ? (
+                  <Input type="number" min="0" max="1" step="0.01" value={edits[s.key] ?? '0.05'} onChange={(e) => setEdits({ ...edits, [s.key]: e.target.value })} dir="ltr" />
                 ) : (
                   <Input value={edits[s.key] ?? ''} onChange={(e) => setEdits({ ...edits, [s.key]: e.target.value })} dir="ltr" />
                 )}
