@@ -59,6 +59,7 @@ const NAV: NavGroup[] = [
     en: 'Distribution',
     items: [
       { href: '/representatives', ar: 'المناديب والعهد', en: 'Representatives', icon: 'id', perm: 'representatives:view' },
+      { href: '/commission-rules', ar: 'قواعد العمولات', en: 'Commission rules', icon: 'id', perm: 'representatives:view' },
       { href: '/vehicles', ar: 'السيارات والمصروفات', en: 'Vehicles', icon: 'truck', perm: 'vehicles:view' },
       { href: '/routes', ar: 'المناطق وخطوط السير', en: 'Areas & routes', icon: 'route', perm: 'routes:view' },
     ],
@@ -105,6 +106,7 @@ const TITLES: { prefix: string; ar: string; en: string }[] = [
   { prefix: '/warehouses', ar: 'المخازن', en: 'Warehouses' },
   { prefix: '/inventory', ar: 'المخزون', en: 'Inventory' },
   { prefix: '/representatives', ar: 'المناديب', en: 'Representatives' },
+  { prefix: '/commission-rules', ar: 'قواعد العمولات', en: 'Commission rules' },
   { prefix: '/vehicles', ar: 'السيارات', en: 'Vehicles' },
   { prefix: '/routes', ar: 'خطوط السير', en: 'Routes' },
   { prefix: '/treasury', ar: 'الخزينة والبنوك', en: 'Treasury' },

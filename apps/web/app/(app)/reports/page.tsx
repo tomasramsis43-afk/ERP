@@ -22,6 +22,13 @@ interface AgingReport { type: string; asOf: string; rows: AgingRow[]; totals: { 
 interface ProfitRow { key: string; code: string; nameAr: string; nameEn: string | null; quantity: string; revenue: string; cost: string; profit: string; marginPercent: string; invoices: number }
 interface ProfitReport { from: string; to: string; dimension: string; rows: ProfitRow[]; totals: { revenue: string; cost: string; profit: string; marginPercent: string } }
 
+interface ValRow { warehouseId: string; warehouseNameAr: string; warehouseNameEn: string; productId: string; productCode: string; productNameAr: string; productNameEn: string; quantity: string; avgCost: string; value: string }
+interface GlPair { stockValue: string; glBalance: string; difference: string }
+interface ValuationReport { totalValue: string; rows: ValRow[]; glComparison: { inventory: GlPair; vehicleStock: GlPair } | null }
+interface LowRow { productId: string; code: string; nameAr: string; nameEn: string; onHand: string; reorderLevel: string; shortfall: string }
+interface SlowRow { productId: string; code: string; nameAr: string; nameEn: string; quantity: string; value: string; lastSaleDate: string | null }
+interface SlowReport { days: number; rows: SlowRow[] }
+
 const REPORT_NAMES = [
   { value: 'trial-balance', label: ['ميزان المراجعة', 'Trial balance'] },
   { value: 'income-statement', label: ['قائمة الدخل', 'Income statement'] },
@@ -33,14 +40,17 @@ const REPORT_NAMES = [
 
 export default function ReportsPage() {
   const { tr, lang } = useApp();
-  const [tab, setTab] = useState<'income' | 'balance' | 'cashflow' | 'agingc' | 'agings' | 'profit' | 'export'>('income');
+  const [tab, setTab] = useState<'income' | 'balance' | 'cashflow' | 'agingc' | 'agings' | 'profit' | 'inventory' | 'export'>('income');
   const today = new Date().toISOString().slice(0, 10);
   const [from, setFrom] = useState(new Date().toISOString().slice(0, 7) + '-01');
   const [to, setTo] = useState(today);
   const [asOf, setAsOf] = useState(today);
   const [dimension, setDimension] = useState<'product' | 'customer' | 'area'>('product');
+  const [invView, setInvView] = useState<'valuation' | 'low' | 'slow'>('valuation');
+  const [slowDays, setSlowDays] = useState('90');
   const [exportName, setExportName] = useState('income-statement');
   const [exportFmt, setExportFmt] = useState<'xlsx' | 'pdf'>('xlsx');
+  const [exportLang, setExportLang] = useState<'ar' | 'en'>(lang === 'ar' ? 'ar' : 'en');
 
   const income = useApi<Income>(tab === 'income' ? `reports/income-statement?from=${from}&to=${to}` : null);
   const balance = useApi<Balance>(tab === 'balance' ? `reports/balance-sheet?asOf=${asOf}` : null);
@@ -49,7 +59,11 @@ export default function ReportsPage() {
   const agingS = useApi<AgingReport>(tab === 'agings' ? `reports/aging/suppliers?asOf=${asOf}` : null);
   const profit = useApi<ProfitReport>(tab === 'profit' ? `reports/profitability?dimension=${dimension}&from=${from}&to=${to}` : null);
 
-  const exportUrl = (name: string) => `reports/export/${name}?format=${exportFmt}&lang=${lang === 'ar' ? 'ar' : 'en'}&${name.includes('balance') || name.includes('aging') ? `asOf=${asOf}` : `from=${from}&to=${to}`}`;
+  const valuation = useApi<ValuationReport>(tab === 'inventory' && invView === 'valuation' ? 'reports/inventory/valuation' : null);
+  const lowStock = useApi<LowRow[]>(tab === 'inventory' && invView === 'low' ? 'reports/inventory/low-stock' : null);
+  const slow = useApi<SlowReport>(tab === 'inventory' && invView === 'slow' ? `reports/inventory/slow-moving?days=${encodeURIComponent(slowDays || '90')}` : null);
+
+  const exportUrl = (name: string) => `reports/export/${name}?format=${exportFmt}&lang=${exportFmt === 'pdf' ? 'en' : exportLang}&${name.includes('balance') || name.includes('aging') ? `asOf=${asOf}` : `from=${from}&to=${to}`}`;
 
   const nameOf = (r: Row) => (lang === 'ar' ? r.nameAr : r.nameEn || r.nameAr);
 
@@ -86,6 +100,7 @@ export default function ReportsPage() {
           { id: 'agingc', label: tr('أعمار العملاء', 'Customer aging') },
           { id: 'agings', label: tr('أعمار الموردين', 'Supplier aging') },
           { id: 'profit', label: tr('الربحية', 'Profitability') },
+          { id: 'inventory', label: tr('المخزون', 'Inventory') },
           { id: 'export', label: tr('تصدير', 'Export') },
         ]} />
       </div>
@@ -237,6 +252,97 @@ export default function ReportsPage() {
         ) : null
       ) : null}
 
+      {tab === 'inventory' ? (
+        <>
+          <div className="toolbar" style={{ marginBottom: 12 }}>
+            <Select value={invView} onChange={(e) => setInvView(e.target.value as 'valuation' | 'low' | 'slow')} style={{ width: 'auto', minWidth: 190 }}>
+              <option value="valuation">{tr('تقييم المخزون', 'Stock valuation')}</option>
+              <option value="low">{tr('أصناف تحت حد الطلب', 'Low stock')}</option>
+              <option value="slow">{tr('أصناف راكدة', 'Slow-moving')}</option>
+            </Select>
+            {invView === 'slow' ? (
+              <Input type="number" min="1" max="3650" value={slowDays} onChange={(e) => setSlowDays(e.target.value)} style={{ width: 120 }} dir="ltr" placeholder={tr('عدد الأيام', 'Days')} />
+            ) : null}
+          </div>
+
+          {invView === 'valuation' ? (
+            valuation.loading && !valuation.data ? <Loading /> : valuation.error ? <ErrorNote error={valuation.error} /> : valuation.data ? (
+              <>
+                {valuation.data.glComparison ? (
+                  <Card className="mb-16">
+                    <div className="summary-strip">
+                      <div className="summary-cell"><div className="label">{tr('قيمة المخزون (الأصناف)', 'Stock value (items)')}</div><div className="value"><Money value={valuation.data.totalValue} bold /></div></div>
+                      <div className="summary-cell"><div className="label">{tr('رصيد حساب المخزون', 'Inventory GL balance')}</div><div className="value"><Money value={valuation.data.glComparison.inventory.glBalance} /></div></div>
+                      <div className="summary-cell"><div className="label">{tr('فرق المخزون', 'Inventory difference')}</div><div className="value"><Money value={valuation.data.glComparison.inventory.difference} bold /></div></div>
+                      <div className="summary-cell"><div className="label">{tr('فرق مخزون السيارات', 'Vehicle stock difference')}</div><div className="value"><Money value={valuation.data.glComparison.vehicleStock.difference} bold /></div></div>
+                    </div>
+                  </Card>
+                ) : null}
+                <Card>
+                  <DataTable<ValRow>
+                    rows={valuation.data.rows}
+                    rowKey={(r) => `${r.warehouseId}:${r.productId}`}
+                    columns={[
+                      { key: 'wh', header: tr('المخزن', 'Warehouse'), render: (r) => (lang === 'ar' ? r.warehouseNameAr : r.warehouseNameEn || r.warehouseNameAr) },
+                      { key: 'code', header: tr('الكود', 'Code'), width: '110px', render: (r) => <span className="tree-code">{r.productCode}</span> },
+                      { key: 'name', header: tr('الصنف', 'Product'), render: (r) => (lang === 'ar' ? r.productNameAr : r.productNameEn || r.productNameAr) },
+                      { key: 'qty', header: tr('الكمية', 'Quantity'), align: 'end', render: (r) => <Qty value={r.quantity} /> },
+                      { key: 'cost', header: tr('متوسط التكلفة', 'Avg cost'), align: 'end', render: (r) => <Money value={r.avgCost} /> },
+                      { key: 'val', header: tr('القيمة', 'Value'), align: 'end', render: (r) => <Money value={r.value} bold /> },
+                    ]}
+                    empty={<EmptyState title={tr('لا يوجد مخزون', 'No stock on hand')} />}
+                    footer={
+                      <tr>
+                        <td colSpan={5} style={{ fontWeight: 700 }}>{tr('الإجمالي', 'Total')}</td>
+                        <td style={{ textAlign: 'end', fontWeight: 700 }}><Money value={valuation.data.totalValue} bold /></td>
+                      </tr>
+                    }
+                  />
+                </Card>
+              </>
+            ) : null
+          ) : null}
+
+          {invView === 'low' ? (
+            lowStock.loading && !lowStock.data ? <Loading /> : lowStock.error ? <ErrorNote error={lowStock.error} /> : lowStock.data ? (
+              <Card>
+                <DataTable<LowRow>
+                  rows={lowStock.data}
+                  rowKey={(r) => r.productId}
+                  columns={[
+                    { key: 'code', header: tr('الكود', 'Code'), width: '110px', render: (r) => <span className="tree-code">{r.code}</span> },
+                    { key: 'name', header: tr('الصنف', 'Product'), render: (r) => (lang === 'ar' ? r.nameAr : r.nameEn || r.nameAr) },
+                    { key: 'on', header: tr('المتاح', 'On hand'), align: 'end', render: (r) => <Qty value={r.onHand} /> },
+                    { key: 'lvl', header: tr('حد إعادة الطلب', 'Reorder level'), align: 'end', render: (r) => <Qty value={r.reorderLevel} /> },
+                    { key: 'short', header: tr('العجز', 'Shortfall'), align: 'end', render: (r) => <Badge tone="danger"><Qty value={r.shortfall} /></Badge> },
+                  ]}
+                  empty={<EmptyState title={tr('لا توجد أصناف تحت حد الطلب', 'No products below their reorder level')} />}
+                />
+              </Card>
+            ) : null
+          ) : null}
+
+          {invView === 'slow' ? (
+            slow.loading && !slow.data ? <Loading /> : slow.error ? <ErrorNote error={slow.error} /> : slow.data ? (
+              <Card>
+                <DataTable<SlowRow>
+                  rows={slow.data.rows}
+                  rowKey={(r) => r.productId}
+                  columns={[
+                    { key: 'code', header: tr('الكود', 'Code'), width: '110px', render: (r) => <span className="tree-code">{r.code}</span> },
+                    { key: 'name', header: tr('الصنف', 'Product'), render: (r) => (lang === 'ar' ? r.nameAr : r.nameEn || r.nameAr) },
+                    { key: 'qty', header: tr('الكمية', 'Quantity'), align: 'end', render: (r) => <Qty value={r.quantity} /> },
+                    { key: 'val', header: tr('القيمة', 'Value'), align: 'end', render: (r) => <Money value={r.value} bold /> },
+                    { key: 'last', header: tr('آخر بيع', 'Last sale'), align: 'center', render: (r) => <DateText value={r.lastSaleDate} /> },
+                  ]}
+                  empty={<EmptyState title={tr('لا توجد أصناف راكدة', 'No slow-moving products')} />}
+                />
+              </Card>
+            ) : null
+          ) : null}
+        </>
+      ) : null}
+
       {tab === 'export' ? (
         <Card>
           <div className="form-grid" style={{ padding: 16 }}>
@@ -252,8 +358,9 @@ export default function ReportsPage() {
               </Select>
             </Field>
             <Field label={tr('اللغة', 'Language')} className="col-3">
-              <Select value={lang} onChange={() => {}}>
-                <option value={lang}>{lang === 'ar' ? 'العربية' : 'English'}</option>
+              <Select value={exportFmt === 'pdf' ? 'en' : exportLang} disabled={exportFmt === 'pdf'} onChange={(e) => setExportLang(e.target.value as 'ar' | 'en')}>
+                <option value="ar">العربية</option>
+                <option value="en">English</option>
               </Select>
             </Field>
             <Field label={tr('من تاريخ / كما في', 'From / as of')} className="col-4"><Input type="date" dir="ltr" value={asOf} onChange={(e) => setAsOf(e.target.value)} /></Field>
@@ -264,6 +371,7 @@ export default function ReportsPage() {
           </div>
           <div className="hint" style={{ padding: '0 16px 16px' }}>
             {tr('يتم إنشاء التقرير من القيود المرحّلة فقط.', 'Reports are generated from posted journal entries only.')}
+            {exportFmt === 'pdf' ? ' ' + tr('ملف PDF متاح بالإنجليزية فقط؛ استخدم Excel للعربية.', 'PDF export is English only; use Excel for Arabic.') : ''}
           </div>
         </Card>
       ) : null}

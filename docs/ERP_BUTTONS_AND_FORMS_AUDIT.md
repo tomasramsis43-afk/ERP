@@ -153,3 +153,14 @@
 - أزرار/إجراءات: إضافة جديد, إلغاء, حفظ
 - مسارات API: —
 - حقول نماذج معرّفة: 0
+
+---
+
+## Additions merged from `main` (earlier audit pass)
+
+| Page | Actions | Endpoint | Status |
+|---|---|---|---|
+| Commission rules | list, create, deactivate | `representatives/commission-rules` | Added |
+| Reports > Inventory | valuation (with GL comparison), low stock, slow-moving | `reports/inventory/*` | Added |
+
+Also fixed there: the Reports > Export **Language** selector had an empty `onChange`; it now sets the export language (PDF is forced to English because the PDF library cannot shape Arabic).
