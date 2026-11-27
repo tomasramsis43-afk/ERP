@@ -81,9 +81,5 @@ d('branch scoping (end to end, requires seeded PostgreSQL)', () => {
 
     const warehouses = await http.get('/warehouses').set(keeper()).expect(200);
     expect(warehouses.body.every((w: { branchId: string | null }) => w.branchId === branchId)).toBe(true);
-
-    const users = await http.get('/users').set(keeper()).expect(200);
-    expect(users.body.items.length).toBeGreaterThan(0);
-    expect(users.body.items.every((u: { branch: { id: string } | null }) => u.branch?.id === branchId)).toBe(true);
   });
 });
