@@ -26,6 +26,11 @@ export function hashToken(token: string): string {
 export class AuthService {
   private readonly env = loadEnv();
 
+  /** In-memory failed-login tracking (resets on restart; production should persist). */
+  private readonly failedAttempts = new Map<string, { count: number; lockedUntil: number }>();
+  private static readonly MAX_ATTEMPTS = 5;
+  private static readonly LOCKOUT_MS = 15 * 60 * 1000;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -47,12 +52,27 @@ export class AuthService {
   }
 
   async login(email: string, password: string, client: ClientInfo): Promise<TokenPair> {
-    const user = await this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    const key = email.toLowerCase();
+    const state = this.failedAttempts.get(key);
+    if (state && state.lockedUntil > Date.now()) {
+      const minutes = Math.ceil((state.lockedUntil - Date.now()) / 60_000);
+      throw new UnauthorizedException(`Account locked. Try again in ${minutes} minute(s).`);
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { email: key } });
     const ok = user?.isActive && (await bcrypt.compare(password, user.passwordHash));
     if (!user || !ok) {
+      const next = { count: (state?.count ?? 0) + 1, lockedUntil: 0 };
+      if (next.count >= AuthService.MAX_ATTEMPTS) {
+        next.lockedUntil = Date.now() + AuthService.LOCKOUT_MS;
+      }
+      this.failedAttempts.set(key, next);
       await this.audit.record({ action: 'LOGIN_FAILED', entity: 'User', newData: { email }, ...client });
       throw new UnauthorizedException('Invalid credentials');
     }
+
+    // Success: clear failed attempts.
+    this.failedAttempts.delete(key);
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await this.audit.record({ userId: user.id, action: 'LOGIN', entity: 'User', entityId: user.id, ...client });
     return this.issueTokens(user.id, user.email, client);
