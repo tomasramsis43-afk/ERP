@@ -286,6 +286,8 @@ model Product {
   transferLines StockTransferLine[]
   salesLines    SalesInvoiceLine[]
   purchaseLines PurchaseInvoiceLine[]
+  salesOrderLines    SalesOrderLine[]
+  purchaseOrderLines PurchaseOrderLine[]
 
   @@index([categoryId])
   @@index([nameAr])
@@ -345,6 +347,7 @@ model Customer {
   representative Representative? @relation(fields: [representativeId], references: [id])
   prices CustomerPrice[]
   salesInvoices SalesInvoice[]
+  salesOrders   SalesOrder[]
 
   @@index([nameAr])
   @@index([regionId])
@@ -365,6 +368,7 @@ model Supplier {
   updatedAt        DateTime @updatedAt
 
   purchaseInvoices PurchaseInvoice[]
+  purchaseOrders   PurchaseOrder[]
 
   @@index([nameAr])
 }
@@ -393,6 +397,8 @@ model Warehouse {
   transfersTo   StockTransfer[] @relation("TransferTo")
   salesInvoices SalesInvoice[]
   purchaseInvoices PurchaseInvoice[]
+  salesOrders      SalesOrder[]
+  purchaseOrders   PurchaseOrder[]
   vehicle Vehicle?
 }
 
@@ -1074,4 +1080,108 @@ model SyncOperation {
   receivedAt      DateTime   @default(now())
 
   @@index([userId, receivedAt])
+}
+
+// ---------------------------------------------------------------
+// Pre-invoice documents: quotations, sales orders, purchase orders.
+// They never touch stock or the ledger; only the invoice created on conversion does.
+// ---------------------------------------------------------------
+
+enum SalesOrderKind {
+  QUOTE
+  ORDER
+}
+
+enum OrderDocStatus {
+  DRAFT
+  CONFIRMED
+  CONVERTED
+  CANCELLED
+}
+
+model SalesOrder {
+  id               String         @id @default(uuid())
+  number           Int            @unique @default(autoincrement())
+  kind             SalesOrderKind @default(QUOTE)
+  status           OrderDocStatus @default(DRAFT)
+  customerId       String
+  warehouseId      String
+  representativeId String?
+  docDate          DateTime       @db.Date
+  validUntil       DateTime?      @db.Date
+  paymentKind      PaymentKind
+  subtotal         Decimal        @db.Decimal(18, 2)
+  discountTotal    Decimal        @default(0) @db.Decimal(18, 2)
+  total            Decimal        @db.Decimal(18, 2)
+  note             String?
+  /// The sales invoice this document was converted into (one document, one invoice).
+  invoiceId        String?        @unique
+  cancelReason     String?
+  createdById      String?
+  createdAt        DateTime       @default(now())
+
+  customer  Customer         @relation(fields: [customerId], references: [id])
+  warehouse Warehouse        @relation(fields: [warehouseId], references: [id])
+  lines     SalesOrderLine[]
+
+  @@index([customerId, docDate])
+  @@index([status, docDate])
+}
+
+model SalesOrderLine {
+  id         String  @id @default(uuid())
+  orderId    String
+  productId  String
+  unitId     String?
+  enteredQty Decimal @db.Decimal(18, 4)
+  unitPrice  Decimal @db.Decimal(18, 4)
+  discount   Decimal @default(0) @db.Decimal(18, 2)
+  lineNet    Decimal @db.Decimal(18, 2)
+
+  order   SalesOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product    @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model PurchaseOrder {
+  id           String         @id @default(uuid())
+  number       Int            @unique @default(autoincrement())
+  status       OrderDocStatus @default(DRAFT)
+  supplierId   String
+  warehouseId  String
+  docDate      DateTime       @db.Date
+  expectedDate DateTime?      @db.Date
+  paymentKind  PaymentKind
+  subtotal     Decimal        @db.Decimal(18, 2)
+  shippingCost Decimal        @default(0) @db.Decimal(18, 2)
+  note         String?
+  invoiceId    String?        @unique
+  cancelReason String?
+  createdById  String?
+  createdAt    DateTime       @default(now())
+
+  supplier  Supplier            @relation(fields: [supplierId], references: [id])
+  warehouse Warehouse           @relation(fields: [warehouseId], references: [id])
+  lines     PurchaseOrderLine[]
+
+  @@index([supplierId, docDate])
+  @@index([status, docDate])
+}
+
+model PurchaseOrderLine {
+  id         String  @id @default(uuid())
+  orderId    String
+  productId  String
+  unitId     String?
+  enteredQty Decimal @db.Decimal(18, 4)
+  unitPrice  Decimal @db.Decimal(18, 4)
+  lineNet    Decimal @db.Decimal(18, 2)
+
+  order   PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product       @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
 }

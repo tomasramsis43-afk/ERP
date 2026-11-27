@@ -13,6 +13,7 @@ Everything below is covered by automated tests that run in CI on every push (Pos
 | Accounting | Chart of accounts, journals (immutable once posted, corrected by reversal), fiscal periods, ledger, trial balance | Done, tested |
 | Inventory | Products with unit conversion, multi-warehouse stock, weighted-average cost, no negative stock, transfers | Done, tested |
 | Sales / Purchases | Cash and credit invoices, returns (good/damaged), cancellation by reversal, credit limits, landed cost, optional VAT | Done, tested |
+| Orders | Quotations, sales orders and purchase orders converted to invoices (idempotent, no stock/ledger effect before conversion) | API done, e2e test added; no web screens yet |
 | Treasury | Cash boxes, banks, vouchers, cheque lifecycle, bank reconciliation | Done, tested |
 | Distribution | Areas, routes, vehicles, representatives, custody, daily closing with stock/cash differences, commissions (no double commission, claw-back) | Done, tested |
 | Reports | Income statement, balance sheet, cash flow, aging, dashboard, Excel export, English PDF export | Done, tested |
@@ -24,7 +25,7 @@ Everything below is covered by automated tests that run in CI on every push (Pos
 
 ### Known limitations
 - Arabic PDF export is not supported (the PDF library cannot shape Arabic); Arabic reports are exported as Excel. English PDF works.
-- The web app is a read/report-oriented admin console: creating and editing documents (invoices, vouchers, etc.) is done through the API (OpenAPI docs at `/api/docs`) for now.
+- The web app creates invoices, vouchers, products, parties and more, but has no screens yet for quotations/orders, stocktake or visit logs. See `docs/ERP_BUTTONS_AND_FORMS_AUDIT.md`.
 - The mobile app has no push notifications, barcode scanning or printing; it needs a real-device test pass before field use.
 - Mobile pull is a full snapshot (no incremental sync); fine for a route's customers and a catalogue, not for very large catalogues.
 - Redis is provisioned in the compose files but no code uses it yet (rate limiting and sessions currently use in-process/PostgreSQL storage, so a multi-instance deployment would need Redis-backed throttling).

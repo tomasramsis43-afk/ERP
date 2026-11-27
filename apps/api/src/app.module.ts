@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { PartiesModule } from './modules/parties/parties.module';
+import { OrdersModule } from './modules/orders/orders.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
 import { HrModule } from './modules/hr/hr.module';
 import { SyncModule } from './modules/sync/sync.module';
@@ -40,6 +41,7 @@ import { UsersModule } from './modules/users/users.module';
     PartiesModule,
     SalesModule,
     PurchasesModule,
+    OrdersModule,
     TreasuryModule,
     RoutesModule,
     VehiclesModule,
