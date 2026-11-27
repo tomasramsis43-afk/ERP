@@ -79,6 +79,6 @@ d('recurring journals (end to end, requires seeded PostgreSQL)', () => {
         ],
       })
       .expect(400);
-    expect(unbalanced.body.message).toMatch(/not balanced/i);
+    expect(JSON.stringify(unbalanced.body)).toMatch(/not balanced/i);
   });
 });
