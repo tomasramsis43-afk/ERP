@@ -283,7 +283,6 @@ model Product {
   customerPrices CustomerPrice[]
   balances      StockBalance[]
   stockCountLines StockCountLine[]
-  stockCounts   StockCount[]
   movements     StockMovement[]
   transferLines StockTransferLine[]
   salesLines    SalesInvoiceLine[]
@@ -390,6 +389,7 @@ model Warehouse {
   isActive  Boolean       @default(true)
 
   balances      StockBalance[]
+  stockCounts   StockCount[]
   movements     StockMovement[]
   transfersFrom StockTransfer[] @relation("TransferFrom")
   transfersTo   StockTransfer[] @relation("TransferTo")
