@@ -110,6 +110,14 @@ export function dayPart(hour: number): DayPart {
   return 'evening';
 }
 
+/** Top N customers by outstanding balance, descending. Customers with zero/negative balance are excluded. */
+export function topCustomersByBalance<T extends { balance: string; id: string }>(customers: T[], limit = 3): T[] {
+  return [...customers]
+    .filter((c) => safeScaled(c.balance) > 0n)
+    .sort((a, b) => (safeScaled(b.balance) > safeScaled(a.balance) ? 1 : safeScaled(b.balance) < safeScaled(a.balance) ? -1 : 0))
+    .slice(0, limit);
+}
+
 /** Sums sales (cash + credit) for receipts whose date starts with the given month (yyyy-mm). */
 export function monthSalesTotal(receipts: { kind: string; total: string; date: string }[], month: string): string {
   let sum = 0n;

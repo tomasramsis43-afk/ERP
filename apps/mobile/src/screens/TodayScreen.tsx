@@ -13,6 +13,7 @@ import {
   splitRoute,
   todayISO,
 } from '../core/fieldDay';
+import { topCustomersByBalance } from '../core/fieldDay';
 import { getMonthlyTarget } from '../core/target';
 import { DaySummary, summarizeDay } from '../core/receipts';
 import { Customer, RepProfile, VisitToday, local, receiptsAll, receiptsForDate, store } from '../db/database';
@@ -81,6 +82,7 @@ export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCust
   const now = useMemo(() => new Date(), [version]);
   const route = useMemo(() => splitRoute(customers as CustomerLike[], visits), [customers, visits]);
   const upcoming = route.pending.slice(0, 4);
+  const topCustomers = useMemo(() => topCustomersByBalance(customers as CustomerLike[], 3), [customers]);
   const salesToday = summary ? addMoney(summary.cashSales, summary.creditSales) : '0.00';
   const returnsToday = summary ? addMoney(summary.returnsGood, summary.returnsDamaged) : '0.00';
   const greeting = t(dayPart(now.getHours()) === 'morning' ? 'greetingMorning' : dayPart(now.getHours()) === 'afternoon' ? 'greetingAfternoon' : 'greetingEvening');
@@ -198,6 +200,23 @@ export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCust
           </View>
         </Pressable>
       )}
+      {topCustomers.length > 0 ? (
+        <View style={st.card}>
+          <View style={st.sectionHead}>
+            <Text style={st.cardTitle}>{t('topCustomers')}</Text>
+          </View>
+          {topCustomers.map((cu) => (
+            <Pressable key={cu.id} style={st.visit} onPress={() => onNewSale(cu.id)} accessibilityRole="button">
+              <View style={st.avatar}><Text style={st.avatarText}>{(cu.nameAr || cu.code).trim().charAt(0)}</Text></View>
+              <View style={st.visitMain}>
+                <Text style={st.visitName} numberOfLines={1}>{pick(cu.nameAr, cu.nameEn)}</Text>
+                <Text style={st.visitMeta} numberOfLines={1}>{cu.code}</Text>
+              </View>
+              <View style={st.chipDue}><Text style={[st.chipText, { color: c.danger }]} numberOfLines={1}>{displayMoney(cu.balance)}</Text></View>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
       {rep ? (
         <View style={st.custodyCard}>
           <View style={st.custodyIcon}><Ionicons name="wallet-outline" size={18} color={c.primary} /></View>

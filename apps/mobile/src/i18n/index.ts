@@ -51,6 +51,7 @@ const dict = {
     enterPin: 'أدخل رمز PIN', wrongPin: 'رمز خاطئ', setPin: 'تعيين رمز PIN', changePin: 'تغيير رمز PIN', removePin: 'إزالة رمز PIN', pinSet: 'تم تعيين الرمز', pinRemoved: 'تمت إزالة الرمز',
     monthlyTarget: 'الهدف الشهري', setTarget: 'تعيين الهدف', targetAmount: 'المبلغ', targetProgress: 'تقدم الهدف', noTarget: 'لم يُعيّن هدف',
     customerNotes: 'ملاحظات', saveNotes: 'حفظ الملاحظات', notesSaved: 'تم حفظ الملاحظات',
+    topCustomers: 'أكبر العملاء رصيداً', recentCollections: 'آخر التحصيلات', noCollections: 'لا توجد تحصيلات', collectionAlloc: 'توزيع التحصيل',
   },
   en: {
     appName: 'Field Rep',
@@ -98,6 +99,7 @@ const dict = {
     enterPin: 'Enter PIN', wrongPin: 'Wrong PIN', setPin: 'Set PIN', changePin: 'Change PIN', removePin: 'Remove PIN', pinSet: 'PIN set', pinRemoved: 'PIN removed',
     monthlyTarget: 'Monthly target', setTarget: 'Set target', targetAmount: 'Amount', targetProgress: 'Target progress', noTarget: 'No target set',
     customerNotes: 'Notes', saveNotes: 'Save notes', notesSaved: 'Notes saved',
+    topCustomers: 'Top customers by balance', recentCollections: 'Recent collections', noCollections: 'No collections', collectionAlloc: 'Collection allocation',
   },
 } as const;
 
