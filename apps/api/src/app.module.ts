@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { throttlerOptions } from './config/throttler';
 import { CommonModule } from './common/common.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
@@ -9,6 +10,7 @@ import { AccountingModule } from './modules/accounting/accounting.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { BranchesModule } from './modules/branches/branches.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { PartiesModule } from './modules/parties/parties.module';
@@ -27,11 +29,12 @@ import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
+    ThrottlerModule.forRootAsync({ useFactory: throttlerOptions }),
     PrismaModule,
     CommonModule,
     AuditModule,
     AuthModule,
+    BranchesModule,
     UsersModule,
     AccountingModule,
     CatalogModule,

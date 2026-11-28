@@ -29,6 +29,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, PermissionCode[]> = {
     ...crud('sales', ['view']),
     ...crud('purchases', ['view']),
     ...crud('reports', ['view']),
+    ...crud('branches', ['view']),
     'accounting:adjust_balance',
     'reports:view_all',
   ],
@@ -37,6 +38,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, PermissionCode[]> = {
     ...crud('products', ['view', 'create', 'update']),
     ...crud('purchases', ['view']),
     ...crud('reports', ['view']),
+    ...crud('branches', ['view']),
   ],
   SALES_MANAGER: [
     ...crud('sales', ['view', 'create', 'update', 'approve', 'cancel']),
@@ -46,10 +48,12 @@ export const ROLE_PERMISSIONS: Record<RoleCode, PermissionCode[]> = {
     ...crud('vehicles'),
     ...crud('routes'),
     ...crud('reports', ['view']),
+    ...crud('branches', ['view']),
     'sales:discount',
     'sales:edit_price',
     'sales:credit_sale',
     'sales:approve_return',
+    'inventory:override_negative',
   ],
   PURCHASING_MANAGER: [
     ...crud('purchases', ['view', 'create', 'update', 'approve', 'cancel']),
@@ -57,6 +61,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, PermissionCode[]> = {
     ...crud('products', ['view']),
     ...crud('inventory', ['view']),
     ...crud('reports', ['view']),
+    ...crud('branches', ['view']),
   ],
   REPRESENTATIVE: [
     ...crud('customers', ['view']),

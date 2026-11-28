@@ -67,12 +67,12 @@ export class SalesService {
   }
 
   private async createOnce(kind: SalesDocKind, dto: CreateSalesReturnDto, user: AuthUser) {
-    this.assertPermissions(dto, user);
+    await this.assertPermissions(dto, user);
     const date = toDate(dto.invoiceDate);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.salesInvoice.findUnique({ where: { idempotencyKey: dto.idempotencyKey }, include: INCLUDE });
-      if (existing) return { invoice: existing, created: false };
+      if (existing) return { invoice: existing, created: false, negativeLines: 0 };
 
       const warehouse = await tx.warehouse.findUnique({ where: { id: dto.warehouseId } });
       if (!warehouse || !warehouse.isActive) throw new BadRequestException('Warehouse not found or inactive');
@@ -133,10 +133,13 @@ export class SalesService {
 
       await this.stock.lockBalances(tx, priced.map((l) => ({ warehouseId: warehouse.id, productId: l.productId })));
       let costTotal = new Decimal(0);
+      let negativeLines = 0;
       const lineRows: Prisma.SalesInvoiceLineCreateManyInput[] = [];
+      const allowNegative = kind === 'SALE' && user.permissions.includes('inventory:override_negative');
       for (const [i, l] of priced.entries()) {
-        const unitCost = await this.moveStock(tx, kind, invoice, warehouse.id, l, original?.id, user.id, i);
-        costTotal = costTotal.plus(l.baseQty.times(unitCost));
+        const move = await this.moveStock(tx, kind, invoice, warehouse.id, l, original?.id, user.id, i, allowNegative, dto.negativeStockReason);
+        if (move.negativeApproved) negativeLines++;
+        costTotal = costTotal.plus(l.baseQty.times(move.unitCost));
         lineRows.push({
           invoiceId: invoice.id,
           productId: l.productId,
@@ -146,7 +149,7 @@ export class SalesService {
           unitPrice: l.unitPrice.toFixed(4),
           discount: l.discount.toFixed(2),
           lineNet: roundMoney(l.lineNet).toFixed(2),
-          unitCost: unitCost.toFixed(4),
+          unitCost: move.unitCost.toFixed(4),
         });
       }
       await tx.salesInvoiceLine.createMany({ data: lineRows });
@@ -178,7 +181,7 @@ export class SalesService {
         data: { costTotal: cost.toFixed(2), journalEntryId: entry.id },
         include: INCLUDE,
       });
-      return { invoice: saved, created: true };
+      return { invoice: saved, created: true, negativeLines };
     });
 
     if (result.created) {
@@ -198,6 +201,16 @@ export class SalesService {
           entityId: result.invoice.id,
           newData: { balanceBefore: override.balanceBefore.toString(), invoiceTotal: override.invoiceTotal.toString(), creditLimit: override.creditLimit.toString() },
           reason: override.reason,
+        });
+      }
+      if (result.negativeLines > 0) {
+        await this.audit.record({
+          userId: user.id,
+          action: 'NEGATIVE_STOCK_OVERRIDE',
+          entity: 'SalesInvoice',
+          entityId: result.invoice.id,
+          newData: { lines: result.negativeLines, warehouseId: result.invoice.warehouseId },
+          reason: dto.negativeStockReason,
         });
       }
     }
@@ -297,15 +310,15 @@ export class SalesService {
 
   // ---- internals ------------------------------------------------------
 
-  private assertPermissions(dto: CreateSalesInvoiceDto, user: AuthUser): void {
+  private async assertPermissions(dto: CreateSalesInvoiceDto, user: AuthUser): Promise<void> {
     if (dto.paymentKind === 'CREDIT' && !user.permissions.includes('sales:credit_sale')) {
       throw new ForbiddenException('Credit sales require sales:credit_sale');
     }
     if (dto.lines.some((l) => l.discount && Number(l.discount) > 0) && !user.permissions.includes('sales:discount')) {
       throw new ForbiddenException('Discounts require sales:discount');
     }
-    // Large discounts (above the configured threshold of the line gross) need approval.
-    const threshold = 0.05;
+    // Large discounts (above the configured fraction of the line gross) need approval.
+    const threshold = await this.discountApprovalThreshold();
     const needsApproval = dto.lines.some((l) => {
       const gross = Number(l.quantity) * Number(l.unitPrice ?? 0);
       const disc = Number(l.discount ?? 0);
@@ -314,6 +327,12 @@ export class SalesService {
     if (needsApproval && !user.permissions.includes('sales:approve_discount')) {
       throw new ForbiddenException('Discounts above the approval threshold require sales:approve_discount');
     }
+  }
+
+  private async discountApprovalThreshold(): Promise<number> {
+    const setting = await this.prisma.setting.findUnique({ where: { key: 'sales.discountApprovalThreshold' } });
+    const value = Number(setting?.value);
+    return Number.isFinite(value) && value >= 0 ? value : 0.05;
   }
 
   private async loadOriginal(tx: Tx, dto: CreateSalesReturnDto) {
@@ -404,7 +423,9 @@ export class SalesService {
     originalId: string | undefined,
     actorId: string,
     index: number,
-  ): Promise<Decimal> {
+    allowNegative: boolean,
+    negativeStockReason: string | undefined,
+  ): Promise<{ unitCost: Decimal; negativeApproved: boolean }> {
     const key = `sinv:${invoice.id}:${index}`;
     if (kind === 'SALE') {
       const r = await this.stock.apply(tx, {
@@ -418,8 +439,10 @@ export class SalesService {
         sourceId: invoice.id,
         idempotencyKey: key,
         createdById: actorId,
+        allowNegative,
+        negativeStockReason,
       });
-      return dec(r.movement.unitCost.toString());
+      return { unitCost: dec(r.movement.unitCost.toString()), negativeApproved: r.negativeApproved };
     }
 
     // Return: use the cost the goods were sold at when the original is known, else current average.
@@ -454,7 +477,7 @@ export class SalesService {
         createdById: actorId,
       });
     }
-    return unitCost;
+    return { unitCost, negativeApproved: false };
   }
 
   /** Validates the representative of a document and returns the GL account of their cash custody. */

@@ -21,29 +21,43 @@ jobs:
         run: npm test --workspace @erp/mobile
 
   apk:
-    # The APK is built on Expo's servers; run it manually once EXPO_TOKEN is set (see docs).
+    # Builds locally with Gradle, so no Expo token or EAS account is required.
+    # Runs only on manual dispatch and publishes to the v0.1.0-mobile-apk release.
     if: ${{ github.event_name == 'workflow_dispatch' }}
     needs: verify
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
-    env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Require EXPO_TOKEN
-        run: |
-          if [ -z "$EXPO_TOKEN" ]; then
-            echo "::error::Add the EXPO_TOKEN repository secret (expo.dev > Access tokens) and run 'eas init' once so app.json gets extra.eas.projectId."
-            exit 1
-          fi
-      - uses: expo/expo-github-action@v8
+      - uses: actions/setup-java@v4
         with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+          distribution: temurin
+          java-version: 17
       - run: npm ci
-      - name: Build APK
+      - name: Generate the Android project
         working-directory: apps/mobile
-        run: eas build --platform android --profile preview --non-interactive --no-wait
+        run: npx expo prebuild --platform android --no-install
+      - name: Build the APK
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease --no-daemon
+      - name: Publish APK to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BUILT="apps/mobile/android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$BUILT"
+          APK="$RUNNER_TEMP/ERP-Mobile.apk"
+          cp "$BUILT" "$APK"
+          if gh release view v0.1.0-mobile-apk >/dev/null 2>&1; then
+            gh release upload v0.1.0-mobile-apk "$APK" --clobber
+          else
+            gh release create v0.1.0-mobile-apk "$APK" \
+              --title "ERP Mobile (Representative) APK" \
+              --notes "Installable Android APK built from main"
+          fi

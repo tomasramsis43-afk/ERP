@@ -17,8 +17,13 @@ export class InventoryReportsService {
     private readonly systemAccounts: SystemAccountsService,
   ) {}
 
-  /** Quantity x weighted-average cost per warehouse and product, plus the GL comparison. */
+  /**
+   * Stock valuation per warehouse and product, plus the GL comparison.
+   * The company setting inventory.valuationMethod selects weighted average or FIFO
+   * (remaining cost layers, with legacy non-layered stock valued at average cost).
+   */
   async valuation(warehouseId?: string) {
+    const method = await this.valuationMethod();
     const balances = await this.prisma.stockBalance.findMany({
       where: { quantity: { not: 0 }, ...(warehouseId ? { warehouseId } : {}) },
       select: {
@@ -31,10 +36,34 @@ export class InventoryReportsService {
       orderBy: [{ warehouseId: 'asc' }, { productId: 'asc' }],
     });
 
+    const layerTotals = new Map<string, { quantity: Decimal; value: Decimal }>();
+    if (method === 'FIFO') {
+      const layers = await this.prisma.stockLayer.findMany({
+        where: { remaining: { gt: 0 }, ...(warehouseId ? { warehouseId } : {}) },
+        select: { warehouseId: true, productId: true, remaining: true, unitCost: true },
+      });
+      for (const l of layers) {
+        const key = `${l.warehouseId}:${l.productId}`;
+        const acc = layerTotals.get(key) ?? { quantity: dec(0), value: dec(0) };
+        const qty = num(l.remaining);
+        acc.quantity = acc.quantity.plus(qty);
+        acc.value = acc.value.plus(qty.mul(num(l.unitCost)));
+        layerTotals.set(key, acc);
+      }
+    }
+
     let total = dec(0);
     let vehicleTotal = dec(0);
     const rows = balances.map((b) => {
-      const value = num(b.quantity).mul(num(b.product.avgCost));
+      const quantity = num(b.quantity);
+      const avgCost = num(b.product.avgCost);
+      const layers = layerTotals.get(`${b.warehouseId}:${b.productId}`);
+      const layerQuantity = layers?.quantity ?? dec(0);
+      const legacyQuantity = quantity.gt(layerQuantity) ? quantity.minus(layerQuantity) : dec(0);
+      const value =
+        method === 'FIFO'
+          ? (layers?.value ?? dec(0)).plus(legacyQuantity.mul(avgCost))
+          : quantity.mul(avgCost);
       total = total.plus(value);
       if (b.warehouse.type === 'VEHICLE') vehicleTotal = vehicleTotal.plus(value);
       return {
@@ -46,14 +75,24 @@ export class InventoryReportsService {
         productCode: b.product.code,
         productNameAr: b.product.nameAr,
         productNameEn: b.product.nameEn,
-        quantity: fmt(num(b.quantity), 4),
-        avgCost: fmt(num(b.product.avgCost), 4),
+        quantity: fmt(quantity, 4),
+        avgCost: fmt(avgCost, 4),
+        method,
+        valuationCost: fmt(quantity.isZero() ? dec(0) : value.div(quantity), 4),
+        layerQuantity: fmt(method === 'FIFO' ? layerQuantity : dec(0), 4),
+        legacyQuantity: fmt(method === 'FIFO' ? legacyQuantity : dec(0), 4),
         value: fmt(value),
       };
     });
 
     const glComparison = warehouseId ? null : await this.glComparison(total.minus(vehicleTotal), vehicleTotal);
-    return { totalValue: fmt(total), rows, glComparison };
+    return { method, totalValue: fmt(total), rows, glComparison };
+  }
+
+  private async valuationMethod(): Promise<'FIFO' | 'WEIGHTED_AVERAGE'> {
+    const setting = await this.prisma.setting.findUnique({ where: { key: 'inventory.valuationMethod' } });
+    const value = typeof setting?.value === 'string' ? setting.value.toUpperCase() : '';
+    return value === 'FIFO' ? 'FIFO' : 'WEIGHTED_AVERAGE';
   }
 
   /**

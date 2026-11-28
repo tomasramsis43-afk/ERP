@@ -21,6 +21,14 @@ export interface AuthUser {
   email: string;
   roles: string[];
   permissions: string[];
+  /** The user's home branch; ignored for system-wide roles. */
+  branchId: string | null;
+}
+
+/** System administrators and general managers always see every branch. */
+export function branchScope(user: AuthUser): string | null {
+  if (user.roles.includes('SYSTEM_ADMIN') || user.roles.includes('GENERAL_MANAGER')) return null;
+  return user.branchId ?? null;
 }
 
 export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext): AuthUser => {

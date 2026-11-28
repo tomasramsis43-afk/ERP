@@ -11,19 +11,19 @@ export class WarehousesController {
 
   @Get()
   @RequirePermissions('inventory:view')
-  list() {
-    return this.warehouses.list();
+  list(@CurrentUser() user: AuthUser) {
+    return this.warehouses.list(user);
   }
 
   @Post()
   @RequirePermissions('inventory:create')
-  create(@Body() dto: CreateWarehouseDto, @CurrentUser() u: AuthUser) {
-    return this.warehouses.create(dto, u.id);
+  create(@Body() dto: CreateWarehouseDto, @CurrentUser() user: AuthUser) {
+    return this.warehouses.create(dto, user);
   }
 
   @Patch(':id')
   @RequirePermissions('inventory:update')
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateWarehouseDto, @CurrentUser() u: AuthUser) {
-    return this.warehouses.update(id, dto, u.id);
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateWarehouseDto, @CurrentUser() user: AuthUser) {
+    return this.warehouses.update(id, dto, user);
   }
 }

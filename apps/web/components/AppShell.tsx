@@ -52,6 +52,7 @@ const NAV: NavGroup[] = [
       { href: '/catalog', ar: 'الوحدات والتصنيفات', en: 'Units & categories', icon: 'package', perm: 'products:view' },
       { href: '/warehouses', ar: 'المخازن', en: 'Warehouses', icon: 'warehouse', perm: 'inventory:view' },
       { href: '/inventory', ar: 'أرصدة وحركة المخزون', en: 'Stock & movements', icon: 'layers', perm: 'inventory:view' },
+      { href: '/inventory/batches', ar: 'الباتشات والصلاحية', en: 'Batches & expiry', icon: 'layers', perm: 'inventory:view' },
     ],
   },
   {
@@ -75,6 +76,8 @@ const NAV: NavGroup[] = [
     items: [
       { href: '/accounting/accounts', ar: 'شجرة الحسابات', en: 'Chart of accounts', icon: 'book', perm: 'accounting:view' },
       { href: '/accounting/journal', ar: 'القيود اليومية', en: 'Journal entries', icon: 'clipboard', perm: 'accounting:view' },
+      { href: '/accounting/opening-balances', ar: 'الأرصدة الافتتاحية', en: 'Opening balances', icon: 'clipboard', perm: 'accounting:approve' },
+      { href: '/accounting/recurring', ar: 'القيود الدورية', en: 'Recurring journals', icon: 'clipboard', perm: 'accounting:approve' },
       { href: '/accounting/ledger', ar: 'ميزان المراجعة والأستاذ', en: 'Trial balance & ledger', icon: 'chart', perm: 'accounting:view' },
       { href: '/accounting/year-end', ar: 'الإقفال السنوي', en: 'Year-end closing', icon: 'lock', perm: 'accounting:approve' },
     ],
@@ -92,7 +95,10 @@ const NAV: NavGroup[] = [
   {
     ar: 'الإدارة',
     en: 'Administration',
-    items: [{ href: '/admin', ar: 'المستخدمون والصلاحيات', en: 'Users & permissions', icon: 'shield', perm: 'users:view' }],
+    items: [
+      { href: '/admin', ar: 'المستخدمون والصلاحيات', en: 'Users & permissions', icon: 'shield', perm: 'users:view' },
+      { href: '/branches', ar: 'الفروع', en: 'Branches', icon: 'building', perm: 'branches:view' },
+    ],
   },
 ];
 
@@ -105,6 +111,7 @@ const TITLES: { prefix: string; ar: string; en: string }[] = [
   { prefix: '/products', ar: 'الأصناف', en: 'Products' },
   { prefix: '/catalog', ar: 'الوحدات والتصنيفات', en: 'Units & categories' },
   { prefix: '/warehouses', ar: 'المخازن', en: 'Warehouses' },
+  { prefix: '/inventory/batches', ar: 'الباتشات والصلاحية', en: 'Batches & expiry' },
   { prefix: '/inventory', ar: 'المخزون', en: 'Inventory' },
   { prefix: '/representatives', ar: 'المناديب', en: 'Representatives' },
   { prefix: '/commission-rules', ar: 'قواعد العمولات', en: 'Commission rules' },
@@ -112,12 +119,15 @@ const TITLES: { prefix: string; ar: string; en: string }[] = [
   { prefix: '/routes', ar: 'خطوط السير', en: 'Routes' },
   { prefix: '/treasury', ar: 'الخزينة والبنوك', en: 'Treasury' },
   { prefix: '/accounting/accounts', ar: 'شجرة الحسابات', en: 'Chart of accounts' },
+  { prefix: '/accounting/opening-balances', ar: 'الأرصدة الافتتاحية', en: 'Opening balances' },
+  { prefix: '/accounting/recurring', ar: 'القيود الدورية', en: 'Recurring journals' },
   { prefix: '/accounting/journal', ar: 'القيود اليومية', en: 'Journal entries' },
   { prefix: '/accounting/ledger', ar: 'ميزان المراجعة والأستاذ', en: 'Trial balance' },
   { prefix: '/accounting/year-end', ar: 'الإقفال السنوي', en: 'Year-end closing' },
   { prefix: '/reports', ar: 'التقارير', en: 'Reports' },
   { prefix: '/hr', ar: 'الموارد البشرية', en: 'Human resources' },
   { prefix: '/admin', ar: 'الإدارة والصلاحيات', en: 'Administration' },
+  { prefix: '/branches', ar: 'الفروع', en: 'Branches' },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

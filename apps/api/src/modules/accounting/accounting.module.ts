@@ -9,12 +9,14 @@ import { LedgerReportsController } from './reports/ledger-reports.controller';
 import { LedgerReportsService } from './reports/ledger-reports.service';
 import { OpeningBalancesController } from './opening-balances/opening-balances.controller';
 import { OpeningBalancesService } from './opening-balances/opening-balances.service';
+import { RecurringJournalsController } from './recurring/recurring-journals.controller';
+import { RecurringJournalsService } from './recurring/recurring-journals.service';
 import { YearEndController } from './year-end/year-end.controller';
 import { YearEndService } from './year-end/year-end.service';
 
 @Module({
-  controllers: [AccountsController, JournalController, LedgerReportsController, OpeningBalancesController, YearEndController],
-  providers: [AccountsService, JournalService, JournalPostingService, LedgerReportsService, SystemAccountsService, OpeningBalancesService, YearEndService],
+  controllers: [AccountsController, JournalController, LedgerReportsController, OpeningBalancesController, RecurringJournalsController, YearEndController],
+  providers: [AccountsService, JournalService, JournalPostingService, LedgerReportsService, SystemAccountsService, OpeningBalancesService, RecurringJournalsService, YearEndService],
   // Other domain modules (sales, purchases, treasury...) import this module and post via JournalPostingService.
   exports: [JournalPostingService, SystemAccountsService, LedgerReportsService],
 })

@@ -1,3 +1,4 @@
+import { useNetInfo } from '@react-native-community/netinfo';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, SafeAreaView, Text, View } from 'react-native';
@@ -20,6 +21,7 @@ type Tab = 'customers' | 'sale' | 'return' | 'collection' | 'van' | 'summary' | 
 
 export default function App() {
   const { s, c } = useTheme();
+  const net = useNetInfo();
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [tab, setTab] = useState<Tab>('customers');
@@ -97,6 +99,11 @@ export default function App() {
         <Pressable onPress={toggleLanguage}><Text style={{ color: c.primary }}>{t('language')}</Text></Pressable>
         <Pressable onPress={async () => { await logout(); setSignedIn(false); }}><Text style={{ color: c.danger }}>{t('logout')}</Text></Pressable>
       </View>
+      {net.isConnected === false && (
+        <View style={{ backgroundColor: c.danger, paddingVertical: 6, paddingHorizontal: 8 }}>
+          <Text style={{ color: '#fff', textAlign: 'center' }}>{t('offline')} — {t('offlineHint')}</Text>
+        </View>
+      )}
       <View style={{ flex: 1 }}>
         {tab === 'customers' && <CustomersScreen version={version} onSell={(id) => { setSaleCustomer(id); setTab('sale'); }} />}
         {tab === 'sale' && <SaleScreen key={saleCustomer ?? 'none'} customerId={saleCustomer} onSaved={() => { bump(); setTab('sync'); }} />}
