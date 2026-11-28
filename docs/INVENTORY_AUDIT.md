@@ -1,9 +1,9 @@
 # Inventory audit (static only)
 
-Reviewed `modules/inventory/stock.service.ts` and its 11 call sites. Nothing executed.
+Reviewed `modules/inventory/stock.service.ts` and its 11 call sites (re-checked finding A after merging main 35156d1). Nothing executed.
 
 PASS (by reading)
-- Single writer of `StockBalance`/`StockMovement`; guarded `UPDATE ... quantity >= qty` prevents negative stock.
+- Single writer of `StockBalance`/`StockMovement`; guarded `UPDATE ... quantity >= qty` prevents negative stock unless the actor holds `inventory:override_negative` with a recorded reason (added on main).
 - Idempotency key prevents a movement twice; average cost updated under a `Product` row lock.
 - Lock order is consistent: every caller of `apply` calls `lockBalances` first (balances sorted, then product).
 - FEFO layer consumption is best-effort for legacy stock.

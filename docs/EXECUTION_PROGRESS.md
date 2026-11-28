@@ -21,7 +21,7 @@ Mobile 60 PASS, API guard specs 8 PASS, accounting-engine 6 PASS, web typecheck 
 2. Decide and fix finding A (purchase-cancel costing) with a database test.
 3. Test the mobile app on a real Android device: login, offline sale, kill app mid-save, sync, camera, PDF, RTL.
 4. Incremental sync (server `since` cursor + mobile) and CONFLICT handling.
-5. Audit accounting posting, treasury, payroll, VAT; add a Branch model if multi-branch is required.
+5. Audit accounting posting, treasury, payroll, VAT and the new branch scoping.
 6. Push notifications (needs credentials), performance volume tests, E2E scenarios.
 
 ## Engineering decisions

@@ -1,6 +1,6 @@
 # Master audit report
 
-Work date: 2026-11-27/28. Branch: `claude/master-audit-and-hardening` (12 commits on top of `main` 72d27f1).
+Work date: 2026-11-27/28. Branch: `claude/master-audit-and-hardening` (merged with `main` 35156d1 on 2026-11-28; main had meanwhile added branches, FIFO valuation reporting, negative-stock gate, persistent lockout and Redis throttling).
 Status legend: PASS / FAIL / BLOCKED / NOT TESTED. Nothing below is claimed beyond what was actually run.
 
 ## Scope actually covered
@@ -21,7 +21,7 @@ Status legend: PASS / FAIL / BLOCKED / NOT TESTED. Nothing below is claimed beyo
 | mobile typecheck | PASS |
 | mobile unit tests | PASS (60 tests, 13 suites; was 24) |
 | web typecheck | PASS |
-| API guard + route-coverage specs (no DB needed) | PASS (8) |
+| API guard + route-coverage + throttler specs (no DB needed), after merging main | PASS (10) |
 | API full typecheck | BLOCKED: `prisma generate` cannot download its engine here (proxy 403) |
 | API / database test suites | BLOCKED: no Prisma engine, no Docker daemon. They run in CI on PostgreSQL 16 |
 | Android build / iOS build | NOT TESTED (needs EAS) |
@@ -59,8 +59,9 @@ Docs: `STATUS_AND_GAPS.md` corrected (mobile screens exist).
 | A | Cancelling a purchase takes stock out at the **current average cost**, while the journal reversal mirrors the original entry at the original cost, and the average is not recomputed. Example: buy 10 @10, buy 10 @20 (avg 15), cancel the first: stock valued 10 x 15 = 150, ledger inventory = 200 - 100 = 100 | Costing rule change needs database tests and an accounting decision. Static reasoning only (not executed) |
 | B | Mobile pull is a full snapshot; no incremental sync, no CONFLICT state | Needs server API changes testable only with the database |
 | C | Local van stock is an estimate computed from the screen's in-memory copy; it self-corrects when the queue is empty and the next snapshot arrives | By design; documented |
-| D | No branch model (no Branch table) so branch isolation cannot exist | Schema decision |
+| D | Main now has a Branch model and branch scoping (`branchScope`). Not audited here: IDOR/branch isolation per endpoint | Needs running API |
 | E | Push notifications | Needs Expo/FCM credentials and a server endpoint for tokens |
+| H | `auth.service.spec` does not compile in this sandbox (Prisma types missing); CI covers it | BLOCKED |
 | F | Arabic PDF export of server reports, FIFO, batches/expiry UI | See README known limitations |
 | G | Accounting, treasury, HR, payroll, VAT, reports, web screens, Prisma migrations | Not audited (needs a running API) |
 
@@ -69,8 +70,9 @@ Docs: `STATUS_AND_GAPS.md` corrected (mobile screens exist).
 - Raw SQL uses tagged templates (parameterized).
 - Sync idempotency: `sync:<opId>` is a unique `idempotencyKey` on the business document, so a concurrent retry
   cannot create it twice.
-- Stock: guarded `UPDATE` prevents negative stock; all 11 call sites lock `StockBalance` before `apply`, so lock order is
-  consistent (no deadlock between them).
+- Stock: guarded `UPDATE` prevents negative stock unless the actor holds `inventory:override_negative` and gives a reason
+  (main's change); all 11 call sites checked before the merge lock `StockBalance` before `apply` (main added no new caller
+  that was re-checked).
 
 ## Production readiness
 **NOT READY.** Blocking items: API tests unverified in this session (run CI on the branch), no device test of the
