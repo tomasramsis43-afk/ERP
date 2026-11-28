@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthUser, CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators';
 import { PushDto } from './dto/sync.dto';
@@ -20,6 +20,7 @@ export class SyncController {
 
   /** Idempotent batch upload of offline operations; always answers 200 with a per-operation result. */
   @Post('push')
+  @HttpCode(200)
   @RequirePermissions('sales:create')
   push(@Body() dto: PushDto, @CurrentUser() user: AuthUser) {
     return this.sync.push(dto, user);
