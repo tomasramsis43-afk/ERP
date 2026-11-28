@@ -1,7 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { CartLine, CustomerPrice, Product, applySale, cartTotal, lineTotal, stockShortages } from '../core/cart';
+import { CartLine, CustomerPrice, Product, applySale, estimateCartTotal, isPositiveQuantity, lineTotal, stockShortages } from '../core/cart';
 import { format } from '../core/money';
 import { OutboxItem } from '../core/outbox';
 import { Receipt } from '../core/receipts';
@@ -9,8 +9,6 @@ import { Customer, local, saveOperation } from '../db/database';
 import { pick, t } from '../i18n';
 import { ProductPicker } from './ProductPicker';
 import { useTheme } from './theme';
-
-const QTY = /^\d{1,10}(\.\d{1,4})?$/;
 
 export function SaleScreen({ customerId, onSaved }: { customerId: string | null; onSaved: () => void }) {
   const { s, c } = useTheme();
@@ -34,7 +32,7 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
   }, []);
 
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
-  const total = useMemo(() => (cart.length ? cartTotal(byId, cart, customer, prices, 'RETAIL') : '0.00'), [cart, byId, customer, prices]);
+  const total = useMemo(() => estimateCartTotal(byId, cart, customer, prices, 'RETAIL'), [cart, byId, customer, prices]);
 
   function add(p: Product, unitId?: string) {
     setCart((cur) => (cur.some((l) => l.productId === p.id) ? cur : [...cur, { productId: p.id, quantity: '1', ...(unitId ? { unitId } : {}) }]));
@@ -44,7 +42,7 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
   async function save() {
     if (saving.current || cart.length === 0) return;
     if (kind === 'CREDIT' && !customer) return Alert.alert(t('selectCustomer'));
-    if (cart.some((l) => !QTY.test(l.quantity) || Number(l.quantity) <= 0)) return Alert.alert(t('quantity'));
+    if (cart.some((l) => !isPositiveQuantity(l.quantity))) return Alert.alert(t('quantity'));
     if (stockShortages(byId, cart, stock).length) return Alert.alert(t('insufficientStock'));
 
     const now = new Date();

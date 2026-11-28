@@ -34,6 +34,11 @@ export interface CartLine {
 
 export type PriceList = 'RETAIL' | 'WHOLESALE';
 
+/** What the quantity field accepts. A half-typed value is not a sale. */
+export function isPositiveQuantity(value: string): boolean {
+  return /^\d{1,10}(\.\d{1,4})?$/.test(value) && Number(value) > 0;
+}
+
 /** Factor of the chosen unit relative to the base unit (1 for the base unit). */
 export function unitFactor(product: Product, unitId?: string): Scaled {
   if (!unitId || unitId === product.baseUnitId) return 10_000n;
@@ -67,6 +72,14 @@ export function cartTotal(products: Map<string, Product>, lines: CartLine[], cus
     total += lineTotal(p, l, customerId, prices, list);
   }
   return format(total, 2);
+}
+
+/**
+ * Total shown on screen while a user is typing. An empty or half-typed quantity counts as zero so the
+ * screen cannot crash; `save()` still rejects it with `isPositiveQuantity` before anything is written.
+ */
+export function estimateCartTotal(products: Map<string, Product>, lines: CartLine[], customerId: string | null, prices: CustomerPrice[], list: PriceList): string {
+  return cartTotal(products, lines.filter((l) => isPositiveQuantity(l.quantity)), customerId, prices, list);
 }
 
 export interface Shortage {

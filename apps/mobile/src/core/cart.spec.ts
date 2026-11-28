@@ -1,4 +1,4 @@
-import { CartLine, Product, applySale, baseQuantity, cartTotal, stockShortages } from './cart';
+import { CartLine, Product, applySale, baseQuantity, cartTotal, estimateCartTotal, isPositiveQuantity, stockShortages } from './cart';
 import { format, lineAmount, parseScaled } from './money';
 
 const carton = 'unit-carton';
@@ -28,6 +28,15 @@ describe('cart', () => {
   it('prices a line in the base unit from the price list', () => {
     expect(cartTotal(products, [{ productId: 'p1', quantity: '5' }], null, [], 'RETAIL')).toBe('100.00');
     expect(cartTotal(products, [{ productId: 'p1', quantity: '5' }], null, [], 'WHOLESALE')).toBe('75.00');
+  });
+  it('ignores half-typed quantities in the live estimate but never accepts them on save', () => {
+    expect(isPositiveQuantity('')).toBe(false);
+    expect(isPositiveQuantity('1.')).toBe(false);
+    expect(isPositiveQuantity('0')).toBe(false);
+    expect(isPositiveQuantity('2.5000')).toBe(true);
+    expect(estimateCartTotal(products, [{ productId: 'p1', quantity: '' }], null, [], 'RETAIL')).toBe('0.00');
+    expect(estimateCartTotal(products, [{ productId: 'p1', quantity: '1.' }], null, [], 'RETAIL')).toBe('0.00');
+    expect(estimateCartTotal(products, [{ productId: 'p1', quantity: '2' }, { productId: 'p1', quantity: '' }], null, [], 'RETAIL')).toBe('40.00');
   });
   it('a customer price beats the price list', () => {
     const prices = [{ customerId: 'c1', productId: 'p1', price: '18.5000' }];
