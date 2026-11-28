@@ -11,6 +11,7 @@ import {
   PayCommissionsDto,
   UpdateRepresentativeDto,
 } from './dto/representatives.dto';
+import { MonitorService } from './monitor.service';
 import { RepresentativesService } from './representatives.service';
 
 @ApiTags('representatives')
@@ -21,7 +22,15 @@ export class RepresentativesController {
     private readonly reps: RepresentativesService,
     private readonly closing: ClosingService,
     private readonly commissions: CommissionsService,
+    private readonly monitor: MonitorService,
   ) {}
+
+  /** Declared before any `:id` route so "monitor" is not parsed as an id. */
+  @Get('monitor')
+  @RequirePermissions('representatives:view')
+  monitorDay(@Query('date') date?: string) {
+    return this.monitor.day(date);
+  }
 
   @Get()
   @RequirePermissions('representatives:view')

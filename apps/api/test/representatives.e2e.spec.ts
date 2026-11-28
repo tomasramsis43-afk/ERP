@@ -140,6 +140,20 @@ d('representatives, vehicles, custody, daily closing and commissions (requires s
     expect(Number(r.lines[0].expectedQty)).toBe(25);
   });
 
+  it('the monitor shows the open day: sales, collections, custody and not yet closed', async () => {
+    const m = (await http.get(`/representatives/monitor?date=${today}`).set(bearer(admin)).expect(200)).body;
+    const row = m.representatives.find((x: { id: string }) => x.id === A.repId);
+    expect(row.sales.cash).toBe('200.00');
+    expect(row.sales.credit).toBe('100.00');
+    expect(Number(row.sales.net)).toBe(300);
+    expect(row.collections.amount).toBe('30.00');
+    expect(Number(row.custodyBalance)).toBe(230);
+    expect(row.dayClosed).toBe(false);
+    expect(row.lastActivityAt).not.toBeNull();
+    expect(m.totals.representatives).toBeGreaterThanOrEqual(1);
+    await http.get('/representatives/monitor?date=nonsense').set(bearer(admin)).expect(400);
+  });
+
   it('refuses a close with a missing count, a future date, or by another representative', async () => {
     await closeDay(A, { date: today, declaredCash: '230', counts: [] }).expect(400);
     await closeDay(A, { date: iso(2), declaredCash: '230', counts: [{ productId, quantity: '25' }] }).expect(400);
@@ -169,6 +183,15 @@ d('representatives, vehicles, custody, daily closing and commissions (requires s
     expect(await balanced()).toBe(true);
     const van = await http.get(`/inventory/balances?warehouseId=${A.vanId}&productId=${productId}`).set(bearer(admin)).expect(200);
     expect(Number(van.body.items[0].quantity)).toBe(24);
+  });
+
+  it('the monitor then shows the day closed with the documented difference and empty custody', async () => {
+    const m = (await http.get(`/representatives/monitor?date=${today}`).set(bearer(admin)).expect(200)).body;
+    const row = m.representatives.find((x: { id: string }) => x.id === A.repId);
+    expect(row.dayClosed).toBe(true);
+    expect(Number(row.closing.cashDifference)).toBe(-10);
+    expect(Number(row.custodyBalance)).toBe(0);
+    expect(m.totals.closed).toBeGreaterThanOrEqual(1);
   });
 
   it('a day can be closed only once', async () => {

@@ -59,6 +59,7 @@ const NAV: NavGroup[] = [
     ar: 'التوزيع والمناديب',
     en: 'Distribution',
     items: [
+      { href: '/representatives/monitor', ar: 'متابعة المناديب', en: 'Rep monitoring', icon: 'eye', perm: 'representatives:view' },
       { href: '/representatives', ar: 'المناديب والعهد', en: 'Representatives', icon: 'id', perm: 'representatives:view' },
       { href: '/commission-rules', ar: 'قواعد العمولات', en: 'Commission rules', icon: 'id', perm: 'representatives:view' },
       { href: '/vehicles', ar: 'السيارات والمصروفات', en: 'Vehicles', icon: 'truck', perm: 'vehicles:view' },
@@ -113,6 +114,7 @@ const TITLES: { prefix: string; ar: string; en: string }[] = [
   { prefix: '/warehouses', ar: 'المخازن', en: 'Warehouses' },
   { prefix: '/inventory/batches', ar: 'الباتشات والصلاحية', en: 'Batches & expiry' },
   { prefix: '/inventory', ar: 'المخزون', en: 'Inventory' },
+  { prefix: '/representatives/monitor', ar: 'متابعة المناديب', en: 'Rep monitoring' },
   { prefix: '/representatives', ar: 'المناديب', en: 'Representatives' },
   { prefix: '/commission-rules', ar: 'قواعد العمولات', en: 'Commission rules' },
   { prefix: '/vehicles', ar: 'السيارات', en: 'Vehicles' },
@@ -183,7 +185,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="nav-group" key={group.ar}>
               <div className="nav-group-title">{tr(group.ar, group.en)}</div>
               {group.items.map((item) => {
-                const active = item.href === '/dashboard' || item.href === '/reports' ? path === item.href : path.startsWith(item.href);
+                const active = item.href === '/dashboard' || item.href === '/reports' || item.href === '/representatives' ? path === item.href : path.startsWith(item.href);
                 return (
                   <Link key={item.href} href={item.href} className={`nav-item${active ? ' active' : ''}`}>
                     <Icon name={item.icon} />
