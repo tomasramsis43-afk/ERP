@@ -110,6 +110,17 @@ export function dayPart(hour: number): DayPart {
   return 'evening';
 }
 
+/** Sums sales (cash + credit) for receipts whose date starts with the given month (yyyy-mm). */
+export function monthSalesTotal(receipts: { kind: string; total: string; date: string }[], month: string): string {
+  let sum = 0n;
+  for (const r of receipts) {
+    if (!r.date.startsWith(month)) continue;
+    if (r.kind !== 'CASH_SALE' && r.kind !== 'CREDIT_SALE') continue;
+    sum += safeScaled(r.total);
+  }
+  return format(sum, 2);
+}
+
 /** Local calendar day as yyyy-mm-dd, matching the date the receipts and the close-day preview use. */
 export function todayISO(now: Date = new Date()): string {
   return now.toISOString().slice(0, 10);

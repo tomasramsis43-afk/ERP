@@ -47,6 +47,10 @@ const dict = {
     reportCollections: 'التحصيلات', reportExpenses: 'المصروفات', reportCommission: 'العمولة', reportEarned: 'مستحقة', reportUnpaid: 'غير مدفوعة',
     reportVisits: 'الزيارات', reportNoData: 'لا توجد بيانات للفترة', reportDaysLimit: 'الحد الأقصى 93 يوماً',
     savingOp: 'جارٍ الحفظ…', opSaved: 'تم الحفظ. سيُرسل عند توفر الإنترنت', opFailed: 'تعذّر الحفظ. حاول مرة أخرى',
+    // Phase 3
+    enterPin: 'أدخل رمز PIN', wrongPin: 'رمز خاطئ', setPin: 'تعيين رمز PIN', changePin: 'تغيير رمز PIN', removePin: 'إزالة رمز PIN', pinSet: 'تم تعيين الرمز', pinRemoved: 'تمت إزالة الرمز',
+    monthlyTarget: 'الهدف الشهري', setTarget: 'تعيين الهدف', targetAmount: 'المبلغ', targetProgress: 'تقدم الهدف', noTarget: 'لم يُعيّن هدف',
+    customerNotes: 'ملاحظات', saveNotes: 'حفظ الملاحظات', notesSaved: 'تم حفظ الملاحظات',
   },
   en: {
     appName: 'Field Rep',
@@ -91,6 +95,9 @@ const dict = {
     reportCollections: 'Collections', reportExpenses: 'Expenses', reportCommission: 'Commission', reportEarned: 'Earned', reportUnpaid: 'Unpaid',
     reportVisits: 'Visits', reportNoData: 'No data for this period', reportDaysLimit: 'Maximum 93 days',
     savingOp: 'Saving…', opSaved: 'Saved. It will be sent when you are online', opFailed: 'Could not save. Please try again',
+    enterPin: 'Enter PIN', wrongPin: 'Wrong PIN', setPin: 'Set PIN', changePin: 'Change PIN', removePin: 'Remove PIN', pinSet: 'PIN set', pinRemoved: 'PIN removed',
+    monthlyTarget: 'Monthly target', setTarget: 'Set target', targetAmount: 'Amount', targetProgress: 'Target progress', noTarget: 'No target set',
+    customerNotes: 'Notes', saveNotes: 'Save notes', notesSaved: 'Notes saved',
   },
 } as const;
 

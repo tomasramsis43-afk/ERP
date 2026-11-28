@@ -15,6 +15,7 @@ import { BottomNav, NavKey } from './src/components/BottomNav';
 import { startAutoSync } from './src/sync/syncRunner';
 import { databaseIsHealthy } from './src/db/database';
 import { Lang, getLang, setLang, t } from './src/i18n';
+import { hasPin } from './src/core/pin';
 import { CollectionScreen } from './src/screens/CollectionScreen';
 import { CloseDayScreen } from './src/screens/CloseDayScreen';
 import { CustomerDetailScreen } from './src/screens/CustomerDetailScreen';
@@ -22,18 +23,21 @@ import { CustomersScreen } from './src/screens/CustomersScreen';
 import { ExpenseScreen } from './src/screens/ExpenseScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { DaySummaryScreen } from './src/screens/DaySummaryScreen';
-import { MoreScreen, MoreTab } from './src/screens/MoreScreen';
+import { PinLockScreen } from './src/screens/PinLockScreen';
+import { PinSetupScreen } from './src/screens/PinSetupScreen';
 import { NewCustomerScreen } from './src/screens/NewCustomerScreen';
 import { RepReportScreen } from './src/screens/RepReportScreen';
 import { ReturnScreen } from './src/screens/ReturnScreen';
 import { SaleScreen } from './src/screens/SaleScreen';
+import { SyncScreen } from './src/screens/SyncScreen';
+import { TargetSetupScreen } from './src/screens/TargetSetupScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
 import { VanStockScreen } from './src/screens/VanStockScreen';
 import { VisitScreen } from './src/screens/VisitScreen';
-import { SyncScreen } from './src/screens/SyncScreen';
+import { MoreScreen, MoreTab } from './src/screens/MoreScreen';
 import { useTheme } from './src/screens/theme';
 
-type Tab = 'today' | 'customers' | 'sale' | 'return' | 'collection' | 'van' | 'summary' | 'close' | 'sync' | 'more' | 'visit' | 'expense' | 'newCustomer' | 'customerDetail' | 'repReport';
+type Tab = 'today' | 'customers' | 'sale' | 'return' | 'collection' | 'van' | 'summary' | 'close' | 'sync' | 'more' | 'visit' | 'expense' | 'newCustomer' | 'customerDetail' | 'repReport' | 'pinSetup' | 'targetSetup';
 
 const MORE_TABS: MoreTab[] = ['return', 'van', 'summary', 'close', 'sync'];
 
@@ -55,6 +59,7 @@ export default function App() {
   });
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  const [locked, setLocked] = useState(false);
   const [tab, setTab] = useState<Tab>('today');
   const [saleCustomer, setSaleCustomer] = useState<string | null>(null);
   const [detailCustomer, setDetailCustomer] = useState<string | null>(null);
@@ -67,6 +72,7 @@ export default function App() {
       setSignedIn(ok);
       setReady(true);
     });
+    void hasPin().then(setLocked);
   }, []);
 
   useEffect(() => {
@@ -97,6 +103,7 @@ export default function App() {
 
   if (!ready || (!fontsLoaded && !fontError)) return null;
   if (!signedIn) return <LoginScreen onDone={() => setSignedIn(true)} />;
+  if (locked) return <PinLockScreen onUnlock={() => setLocked(false)} />;
 
   const selectNav = (key: NavKey) => {
     if (key === 'sale') setSaleCustomer(null);
@@ -122,6 +129,7 @@ export default function App() {
             onVisit={(id) => { setVisitCustomer(id ?? null); setTab('visit'); }}
             onExpense={() => setTab('expense')}
             onNewCustomer={() => setTab('newCustomer')}
+            onSetTarget={() => setTab('targetSetup')}
             onCustomers={() => setTab('customers')}
             onSync={() => setTab('sync')}
           />
@@ -146,11 +154,15 @@ export default function App() {
           />
         )}
         {tab === 'repReport' && <RepReportScreen />}
+        {tab === 'pinSetup' && <PinSetupScreen onDone={() => setTab('more')} />}
+        {tab === 'targetSetup' && <TargetSetupScreen onDone={() => setTab('more')} />}
         {tab === 'more' && (
           <MoreScreen
             version={version}
             onOpen={(next) => { if (MORE_TABS.includes(next)) setTab(next); }}
             onOpenReport={() => setTab('repReport')}
+            onSetPin={() => setTab('pinSetup')}
+            onSetTarget={() => setTab('targetSetup')}
             onToggleLanguage={toggleLanguage}
             onLogout={async () => { await logout(); setSignedIn(false); }}
           />

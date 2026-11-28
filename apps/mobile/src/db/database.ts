@@ -249,6 +249,12 @@ export async function receiptsForDate(date: string): Promise<Receipt[]> {
   return rows.map((x) => JSON.parse(x.body) as Receipt);
 }
 
+export async function receiptsAll(): Promise<Receipt[]> {
+  const d = await db();
+  const rows = await d.getAllAsync<{ body: string }>('SELECT body FROM receipts ORDER BY createdAt');
+  return rows.map((x) => JSON.parse(x.body) as Receipt);
+}
+
 export function pruneOldReceipts(today: string, keepDays = 30): Promise<void> {
   return write(async () => {
     const d = await db();
