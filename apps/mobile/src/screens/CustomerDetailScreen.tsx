@@ -1,6 +1,7 @@
+import * as SecureStore from 'expo-secure-store';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Customer, local, store } from '../db/database';
 import { get } from '../api/client';
 import { pendingNewCustomers } from '../core/fieldOps';
@@ -30,8 +31,14 @@ export function CustomerDetailScreen({
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [pending, setPending] = useState(false);
   const [statement, setStatement] = useState<StatementResp | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notes, setNotes] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
+
+  useEffect(() => {
+    void SecureStore.getItemAsync(`erp.note.${customerId}`).then((v) => { if (v) setNotes(v); });
+  }, [customerId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,6 +72,14 @@ export function CustomerDetailScreen({
 
   const name = customer ? pick(customer.nameAr, customer.nameEn) : customerId;
   const status = customer ? customerStatus(customer as CustomerLike) : null;
+
+  async function saveNotes() {
+    if (savingNotes) return;
+    setSavingNotes(true);
+    try { await SecureStore.setItemAsync(`erp.note.${customerId}`, notes); } catch { setSavingNotes(false); return; }
+    setSavingNotes(false);
+    Alert.alert(t('notesSaved'));
+  }
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: c.bg }} contentContainerStyle={st.content}>
@@ -162,6 +177,21 @@ export function CustomerDetailScreen({
           </View>
         </>
       ) : null}
+
+      <View style={st.card}>
+        <Text style={st.cardTitle}>{t('customerNotes')}</Text>
+        <TextInput
+          style={[st.input, { height: 90, textAlignVertical: 'top' }]}
+          value={notes}
+          onChangeText={setNotes}
+          placeholder={t('customerNotes')}
+          placeholderTextColor={c.sub}
+          multiline
+        />
+        <Pressable style={[st.button, savingNotes ? st.buttonDisabled : null]} onPress={saveNotes} disabled={savingNotes} accessibilityRole="button">
+          <Text style={st.buttonText}>{savingNotes ? t('savingOp') : t('saveNotes')}</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
@@ -190,5 +220,9 @@ function makeStyles(c: ReturnType<typeof useTheme>['c'], font: ReturnType<typeof
     statementDate: { color: c.text, fontSize: 10, fontFamily: font.bold },
     divider: { height: 1, backgroundColor: c.border, marginVertical: 8 },
     center: { paddingVertical: 40, alignItems: 'center' },
+    input: { backgroundColor: c.card, color: c.text, borderWidth: 1, borderColor: c.border, borderRadius: 14, padding: 12, fontSize: 14, fontFamily: font.regular },
+    button: { backgroundColor: c.primary, borderRadius: 16, padding: 15, alignItems: 'center', marginTop: 14 },
+    buttonDisabled: { opacity: 0.5 },
+    buttonText: { color: '#fff', fontSize: 15, fontFamily: font.bold },
   });
 }

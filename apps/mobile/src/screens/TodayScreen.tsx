@@ -9,11 +9,13 @@ import {
   dayPart,
   displayMoney,
   longDate,
+  monthSalesTotal,
   splitRoute,
   todayISO,
 } from '../core/fieldDay';
+import { getMonthlyTarget } from '../core/target';
 import { DaySummary, summarizeDay } from '../core/receipts';
-import { Customer, RepProfile, VisitToday, local, receiptsForDate, store } from '../db/database';
+import { Customer, RepProfile, VisitToday, local, receiptsAll, receiptsForDate, store } from '../db/database';
 import { getLang, pick, t } from '../i18n';
 import { useTheme } from './theme';
 
@@ -26,13 +28,14 @@ interface Props {
   onVisit: (customerId?: string) => void;
   onExpense: () => void;
   onNewCustomer: () => void;
+  onSetTarget: () => void;
   onCustomers: () => void;
   onSync: () => void;
 }
 
 const money = (v: string | null | undefined) => displayMoney(v);
 
-export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCustomer, onVisit, onExpense, onNewCustomer, onCustomers, onSync }: Props) {
+export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCustomer, onVisit, onExpense, onNewCustomer, onSetTarget, onCustomers, onSync }: Props) {
   const { c, font } = useTheme();
   const net = useNetInfo();
   const st = useMemo(() => makeStyles(c, font), [c, font]);
@@ -42,16 +45,20 @@ export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCust
   const [summary, setSummary] = useState<DaySummary | null>(null);
   const [outbox, setOutbox] = useState<Awaited<ReturnType<typeof store.loadOutbox>>>([]);
   const [pending, setPending] = useState(0);
+  const [target, setTarget] = useState<string | null>(null);
+  const [monthSales, setMonthSales] = useState('0.00');
   const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
     const date = todayISO();
-    const [r, cs, vs, receipts, ob] = await Promise.all([
+    const [r, cs, vs, receipts, ob, tg, allR] = await Promise.all([
       local.rep(),
       local.customers(),
       local.visitsToday(),
       receiptsForDate(date),
       store.loadOutbox(),
+      getMonthlyTarget(todayISO().slice(0, 7)),
+      receiptsAll(),
     ]);
     setRep(r);
     setCustomers(cs);
@@ -62,6 +69,8 @@ export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCust
     setSummary(summarizeDay(receipts, date));
     setPending(ob.filter((o) => o.status === 'PENDING').length);
     setOutbox(ob);
+    setTarget(tg);
+    setMonthSales(monthSalesTotal(allR, todayISO().slice(0, 7)));
     setLoaded(true);
   }, []);
 
@@ -163,6 +172,32 @@ export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCust
         </View>
       ) : null}
 
+      {target ? (
+        <View style={st.progressCard}>
+          <View style={st.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={st.cardTitle}>{t('monthlyTarget')}</Text>
+              <Text style={st.cardSub}>{displayMoney(monthSales)} / {displayMoney(target)}</Text>
+            </View>
+            <Pressable onPress={onSetTarget} hitSlop={8}>
+              <Text style={st.sectionLink}>{t('change')}</Text>
+            </Pressable>
+          </View>
+          <View style={st.track}>
+            <View style={[st.fill, { width: `${Math.min(100, target !== '0.00' ? Math.round((Number(monthSales) / Number(target)) * 100) : 0)}%` }]} />
+          </View>
+        </View>
+      ) : (
+        <Pressable style={st.progressCard} onPress={onSetTarget} accessibilityRole="button">
+          <View style={st.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={st.cardTitle}>{t('monthlyTarget')}</Text>
+              <Text style={st.cardSub}>{t('noTarget')}</Text>
+            </View>
+            <Text style={st.sectionLink}>{t('setTarget')}</Text>
+          </View>
+        </Pressable>
+      )}
       {rep ? (
         <View style={st.custodyCard}>
           <View style={st.custodyIcon}><Ionicons name="wallet-outline" size={18} color={c.primary} /></View>

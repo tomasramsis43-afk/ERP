@@ -9,11 +9,13 @@ import { useTheme } from './theme';
 export type MoreTab = 'return' | 'van' | 'summary' | 'close' | 'sync';
 
 export function MoreScreen({
-  version, onOpen, onOpenReport, onToggleLanguage, onLogout,
+  version, onOpen, onOpenReport, onSetPin, onSetTarget, onToggleLanguage, onLogout,
 }: {
   version: number;
   onOpen: (tab: MoreTab) => void;
   onOpenReport: () => void;
+  onSetPin: () => void;
+  onSetTarget: () => void;
   onToggleLanguage: () => void;
   onLogout: () => void;
 }) {
@@ -70,6 +72,8 @@ export function MoreScreen({
       {row('bar-chart-outline', t('reportTitle'), onOpenReport)}
 
       <Text style={st.section}>{t('accountSection')}</Text>
+      {row('lock-closed-outline', t('setPin'), onSetPin)}
+      {row('flag-outline', t('monthlyTarget'), onSetTarget)}
       {row('language-outline', t('language'), onToggleLanguage)}
       {row('log-out-outline', t('logout'), onLogout, true)}
     </ScrollView>
