@@ -1,6 +1,6 @@
 import { Scaled, format, parseScaled } from './money';
 
-export type ReceiptKind = 'CASH_SALE' | 'CREDIT_SALE' | 'RETURN_GOOD' | 'RETURN_DAMAGED' | 'COLLECTION';
+export type ReceiptKind = 'CASH_SALE' | 'CREDIT_SALE' | 'RETURN_GOOD' | 'RETURN_DAMAGED' | 'COLLECTION' | 'EXPENSE';
 
 export interface ReceiptLine {
   name: string;
@@ -38,29 +38,40 @@ export interface DaySummary {
   returnsGood: string;
   returnsDamaged: string;
   cashRefunds: string;
+  /** Money the representative spent from the custody (fuel, repairs...). */
+  expenses: string;
   /** Cash that should be in the representative's hands from today's documents (estimate). */
   expectedCash: string;
 }
 
 const money = (v: string): Scaled => parseScaled(v, 2);
 
-/** Sums one day's receipts. Expected cash = cash sales + collections - cash refunds. */
+/** Sums the receipts of one day. Expected cash = cash sales + collections - cash refunds - expenses. */
 export function summarizeDay(receipts: Receipt[], date: string): DaySummary {
-  let cash = 0n, credit = 0n, coll = 0n, good = 0n, damaged = 0n, refunds = 0n, count = 0;
+  return sumReceipts(receipts.filter((r) => r.date === date), date);
+}
+
+/** Same totals over an inclusive date range (yyyy-mm-dd), for the weekly and monthly report. */
+export function summarizeRange(receipts: Receipt[], from: string, to: string): DaySummary {
+  return sumReceipts(receipts.filter((r) => r.date >= from && r.date <= to), `${from} → ${to}`);
+}
+
+function sumReceipts(receipts: Receipt[], label: string): DaySummary {
+  let cash = 0n, credit = 0n, coll = 0n, good = 0n, damaged = 0n, refunds = 0n, spent = 0n, count = 0;
   for (const r of receipts) {
-    if (r.date !== date) continue;
     count += 1;
     const total = money(r.total);
     switch (r.kind) {
       case 'CASH_SALE': cash += total; break;
       case 'CREDIT_SALE': credit += total; break;
       case 'COLLECTION': coll += total; break;
+      case 'EXPENSE': spent += total; break;
       case 'RETURN_GOOD': good += total; if (r.cashRefund) refunds += total; break;
       case 'RETURN_DAMAGED': damaged += total; if (r.cashRefund) refunds += total; break;
     }
   }
   return {
-    date,
+    date: label,
     count,
     cashSales: format(cash, 2),
     creditSales: format(credit, 2),
@@ -68,7 +79,8 @@ export function summarizeDay(receipts: Receipt[], date: string): DaySummary {
     returnsGood: format(good, 2),
     returnsDamaged: format(damaged, 2),
     cashRefunds: format(refunds, 2),
-    expectedCash: format(cash + coll - refunds, 2),
+    expenses: format(spent, 2),
+    expectedCash: format(cash + coll - refunds - spent, 2),
   };
 }
 

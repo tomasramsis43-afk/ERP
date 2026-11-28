@@ -1,4 +1,4 @@
-import { CartLine, Product, applySale, baseQuantity, cartTotal, estimateCartTotal, isPositiveQuantity, stockShortages } from './cart';
+import { CartLine, Product, applySale, baseQuantity, cartTotal, estimateCartTotal, isPositiveQuantity, isValidDiscount, stockShortages } from './cart';
 import { format, lineAmount, parseScaled } from './money';
 
 const carton = 'unit-carton';
@@ -63,5 +63,19 @@ describe('cart', () => {
     expect(afterSale.get('p1')).toBe('6.0000');
     expect(applySale(afterSale, products, [{ productId: 'p1', quantity: '1' }], 1).get('p1')).toBe('7.0000');
     expect(stock.get('p1')).toBe('30.0000'); // original untouched
+  });
+});
+
+describe('line discount', () => {
+  it('subtracts the discount from the line and never goes below zero', () => {
+    expect(cartTotal(products, [{ productId: 'p1', quantity: '5', discount: '10' }], null, [], 'RETAIL')).toBe('90.00');
+    expect(cartTotal(products, [{ productId: 'p1', quantity: '5', discount: '250' }], null, [], 'RETAIL')).toBe('0.00');
+  });
+  it('ignores a half-typed discount in the estimate and validates the format', () => {
+    expect(cartTotal(products, [{ productId: 'p1', quantity: '5', discount: '1,5' }], null, [], 'RETAIL')).toBe('100.00');
+    expect(isValidDiscount('')).toBe(true);
+    expect(isValidDiscount('12.5')).toBe(true);
+    expect(isValidDiscount('12.555')).toBe(false);
+    expect(isValidDiscount('-1')).toBe(false);
   });
 });

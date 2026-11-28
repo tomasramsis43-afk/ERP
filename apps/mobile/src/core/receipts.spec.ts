@@ -1,4 +1,4 @@
-import { Receipt, pruneReceipts, receiptText, summarizeDay } from './receipts';
+import { Receipt, pruneReceipts, receiptText, summarizeDay, summarizeRange } from './receipts';
 
 const base = { customerId: null, customerName: null, lines: [], createdAt: '2026-11-27T08:00:00Z' };
 const r = (opId: string, kind: Receipt['kind'], total: string, date = '2026-11-27'): Receipt => ({ ...base, opId, kind, total, date });
@@ -27,6 +27,7 @@ describe('summarizeDay', () => {
       returnsGood: '14.00',
       returnsDamaged: '5.50',
       cashRefunds: '4.00',
+      expenses: '0.00',
       expectedCash: '126.35',
     });
   });
@@ -54,5 +55,21 @@ describe('receiptText', () => {
     expect(text).toContain('Tea  x 2  =  24.00');
     expect(text).toContain('Total: 24.00');
     expect(text).toContain('Ref: abcdef12');
+  });
+});
+
+describe('expenses and ranges', () => {
+  const mk = (kind: Receipt['kind'], total: string, date: string): Receipt => ({ opId: `${kind}-${date}-${total}`, kind, date, total, lines: [] } as unknown as Receipt);
+  it('an expense lowers the cash that should be in hand', () => {
+    const s = summarizeDay([mk('CASH_SALE', '100.00', '2026-11-27'), mk('EXPENSE', '30.50', '2026-11-27')], '2026-11-27');
+    expect(s.expenses).toBe('30.50');
+    expect(s.expectedCash).toBe('69.50');
+  });
+  it('sums an inclusive date range and ignores days outside it', () => {
+    const list = [mk('CASH_SALE', '10.00', '2026-11-25'), mk('CASH_SALE', '20.00', '2026-11-26'), mk('COLLECTION', '5.00', '2026-11-27'), mk('CASH_SALE', '99.00', '2026-11-28')];
+    const s = summarizeRange(list, '2026-11-25', '2026-11-27');
+    expect(s.cashSales).toBe('30.00');
+    expect(s.collections).toBe('5.00');
+    expect(s.count).toBe(3);
   });
 });

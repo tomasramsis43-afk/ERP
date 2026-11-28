@@ -30,6 +30,8 @@ export interface CartLine {
   quantity: string;
   /** Omitted = the product's base unit. */
   unitId?: string;
+  /** Absolute discount for the whole line, up to 2 decimals. Needs the sales:discount permission on the server. */
+  discount?: string;
 }
 
 export type PriceList = 'RETAIL' | 'WHOLESALE';
@@ -59,9 +61,16 @@ export function baseQuantity(product: Product, line: CartLine): Scaled {
   return (q * unitFactor(product, line.unitId)) / 10_000n;
 }
 
-/** Estimated line total; the server remains the authority and recomputes it. */
+/** Empty means "no discount"; anything else must be a plain amount with at most 2 decimals. */
+export function isValidDiscount(value: string | undefined): boolean {
+  return !value || /^\d{1,12}(\.\d{1,2})?$/.test(value);
+}
+
+/** Estimated line total after the discount (never below zero); the server remains the authority and recomputes it. */
 export function lineTotal(product: Product, line: CartLine, customerId: string | null, prices: CustomerPrice[], list: PriceList): Scaled {
-  return lineAmount(baseQuantity(product, line), basePrice(product, customerId, prices, list));
+  const gross = lineAmount(baseQuantity(product, line), basePrice(product, customerId, prices, list));
+  const discount = line.discount && isValidDiscount(line.discount) ? parseScaled(line.discount, 2) : 0n;
+  return discount >= gross ? 0n : gross - discount;
 }
 
 export function cartTotal(products: Map<string, Product>, lines: CartLine[], customerId: string | null, prices: CustomerPrice[], list: PriceList): string {
