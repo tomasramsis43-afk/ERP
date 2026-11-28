@@ -1,4 +1,4 @@
-import { OutboxItem, ServerResult } from '../core/outbox';
+import { OutboxItem, ServerResult, applyResults } from '../core/outbox';
 import { Snapshot, SyncApi, SyncStore, synchronize } from './syncEngine';
 
 const item = (opId: string, at: string, over: Partial<OutboxItem> = {}): OutboxItem => ({
@@ -9,7 +9,7 @@ function fakeStore(initial: OutboxItem[]) {
   const state = { outbox: initial, snapshot: null as Snapshot | null };
   const store: SyncStore = {
     loadOutbox: async () => state.outbox,
-    saveOutbox: async (i) => { state.outbox = i; },
+    applyServerResults: async (r) => { state.outbox = applyResults(state.outbox, r); },
     saveSnapshot: async (s) => { state.snapshot = s; },
   };
   return { state, store };
@@ -94,5 +94,30 @@ describe('synchronize', () => {
     const r = await synchronize(api, store, 'dev');
     expect(r.error).toBe('dropped');
     expect(state.outbox).toHaveLength(50);
+  });
+});
+
+
+describe('synchronize concurrency', () => {
+  it('keeps a sale saved while the push is in flight, and does not pull over it', async () => {
+    const { store, state } = fakeStore([item('a', '1')]);
+    const api: SyncApi = {
+      push: async (_d, ops) => {
+        state.outbox = [...state.outbox, item('late', '2')]; // user finishes a sale mid-sync
+        return applied(ops);
+      },
+      pull: async () => { throw new Error('must not pull'); },
+    };
+    const r = await synchronize(api, store, 'dev');
+    expect(state.outbox.map((o) => o.opId)).toEqual(['late']);
+    expect(r).toMatchObject({ sent: 1, pending: 1, pulled: false });
+  });
+
+  it('a second call while one is running joins it instead of pushing twice', async () => {
+    const { store } = fakeStore([item('a', '1')]);
+    const { api, calls } = fakeApi(applied);
+    const [r1, r2] = await Promise.all([synchronize(api, store, 'dev'), synchronize(api, store, 'dev')]);
+    expect(calls.push).toEqual([['a']]);
+    expect(r1).toBe(r2);
   });
 });

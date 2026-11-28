@@ -4,7 +4,8 @@ import { Alert, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'r
 import { CartLine, CustomerPrice, Product, applySale, cartTotal, lineTotal, stockShortages } from '../core/cart';
 import { format } from '../core/money';
 import { Receipt } from '../core/receipts';
-import { Customer, addReceipt, enqueue, local } from '../db/database';
+import { OutboxItem } from '../core/outbox';
+import { Customer, commitLocal, local } from '../db/database';
 import { pick, t } from '../i18n';
 import { useTheme } from './theme';
 
@@ -47,7 +48,7 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
     const now = new Date();
     // The operation id is created once, here. Every retry of this sale reuses it, so the server can never create it twice.
     const opId = Crypto.randomUUID();
-    await enqueue({
+    const item: OutboxItem = {
       opId,
       type: 'SALE',
       clientCreatedAt: now.toISOString(),
@@ -60,7 +61,7 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
         ...(customer ? { customerId: customer } : {}),
         lines: cart.map((l) => ({ productId: l.productId, quantity: l.quantity })),
       },
-    });
+    };
     const who = customers.find((x) => x.id === customer);
     const receipt: Receipt = {
       opId,
@@ -75,8 +76,8 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
       }),
       total,
     };
-    await addReceipt(receipt);
-    await local.setVanStock(applySale(stock, byId, cart)); // the next offline sale sees what is really left
+    // One transaction: outbox + receipt + van stock. The next offline sale sees what is really left.
+    await commitLocal({ item, receipt, vanStock: applySale(stock, byId, cart) });
     Alert.alert(t('savedOffline'));
     setCart([]);
     onSaved();

@@ -3,7 +3,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { CartLine, Product, applySale, cartTotal } from '../core/cart';
 import { Receipt } from '../core/receipts';
-import { Customer, addReceipt, enqueue, local } from '../db/database';
+import { OutboxItem } from '../core/outbox';
+import { Customer, commitLocal, local } from '../db/database';
 import { pick, t } from '../i18n';
 import { useTheme } from './theme';
 
@@ -41,7 +42,7 @@ export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
     const now = new Date();
     const opId = Crypto.randomUUID();
     const date = now.toISOString().slice(0, 10);
-    await enqueue({
+    const item: OutboxItem = {
       opId,
       type: 'RETURN',
       clientCreatedAt: now.toISOString(),
@@ -55,7 +56,7 @@ export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
         ...(customer ? { customerId: customer } : {}),
         lines: cart.map((l) => ({ productId: l.productId, quantity: l.quantity })),
       },
-    });
+    };
     const who = customers.find((x) => x.id === customer);
     const receipt: Receipt = {
       opId,
@@ -71,9 +72,8 @@ export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
       total,
       cashRefund: refund === 'CASH',
     };
-    await addReceipt(receipt);
     // Only good goods go back on the van (the server does the same); damaged goods are not restocked.
-    if (condition === 'GOOD') await local.setVanStock(applySale(stock, byId, cart, 1));
+    await commitLocal({ item, receipt, vanStock: condition === 'GOOD' ? applySale(stock, byId, cart, 1) : undefined });
     Alert.alert(t('savedOffline'));
     setCart([]);
     onSaved();
