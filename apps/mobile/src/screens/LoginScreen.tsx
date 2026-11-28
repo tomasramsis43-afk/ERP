@@ -35,6 +35,7 @@ export function LoginScreen({ onDone }: { onDone: () => void }) {
       <TextInput style={s.input} placeholder={t('server')} placeholderTextColor={c.sub} autoCapitalize="none" autoCorrect={false} keyboardType="url" value={server} onChangeText={setServer} />
       <TextInput style={s.input} placeholder={t('email')} placeholderTextColor={c.sub} autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
       <TextInput style={s.input} placeholder={t('password')} placeholderTextColor={c.sub} secureTextEntry value={password} onChangeText={setPassword} />
+      {busy ? <Text style={{ color: c.sub, textAlign: 'center', marginBottom: 8 }}>{t('waking')}</Text> : null}
       {error ? <Text style={s.error}>{error}</Text> : null}
       <Pressable style={s.button} onPress={submit} disabled={busy}>
         {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.buttonText}>{t('login')}</Text>}

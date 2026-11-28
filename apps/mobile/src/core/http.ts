@@ -10,6 +10,8 @@ export class NetworkError extends Error {
 }
 
 export const DEFAULT_TIMEOUT_MS = 20_000;
+/** A free-tier server sleeps when idle and needs about a minute to wake; sign-in waits for it. */
+export const WAKE_TIMEOUT_MS = 90_000;
 
 /**
  * fetch with a deadline and optional caller cancellation (AbortController). Failures become NetworkError so
@@ -53,9 +55,11 @@ export function safeJson(text: string): { ok: true; value: unknown } | { ok: fal
   }
 }
 
-/** Builds a readable error message from a NestJS-style body ({ message: string | string[] }). */
+/** Builds a readable error message from the API body: { error: { message } } (current) or { message } (plain NestJS). */
 export function errorMessage(body: unknown, fallback: string): string {
-  const m = (body as { message?: unknown } | null)?.message;
+  const b = body as { message?: unknown; error?: unknown } | null;
+  const inner = b?.error && typeof b.error === 'object' ? (b.error as { message?: unknown }).message : undefined;
+  const m = b?.message ?? inner;
   if (Array.isArray(m)) return m.join('; ');
   return typeof m === 'string' && m ? m : fallback;
 }

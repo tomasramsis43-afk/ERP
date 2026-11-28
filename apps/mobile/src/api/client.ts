@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { normalizeServerUrl } from '../core/serverUrl';
-import { DEFAULT_TIMEOUT_MS, NetworkError, errorMessage, fetchWithTimeout, safeJson, singleFlight } from '../core/http';
+import { DEFAULT_TIMEOUT_MS, WAKE_TIMEOUT_MS, NetworkError, errorMessage, fetchWithTimeout, safeJson, singleFlight } from '../core/http';
 import { ServerResult } from '../core/outbox';
 import { Snapshot, SyncApi } from '../sync/syncEngine';
 
@@ -44,11 +44,11 @@ export async function setServerUrl(input: string): Promise<string> {
   return url;
 }
 
-async function raw(path: string, init: RequestInit & { token?: string }, signal?: AbortSignal): Promise<Response> {
+async function raw(path: string, init: RequestInit & { token?: string; timeoutMs?: number }, signal?: AbortSignal): Promise<Response> {
   const BASE = await getServerUrl();
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(init.headers as Record<string, string>) };
   if (init.token) headers.Authorization = `Bearer ${init.token}`;
-  return fetchWithTimeout((u, i) => fetch(u, i), `${BASE}${path}`, { ...init, headers }, DEFAULT_TIMEOUT_MS, signal);
+  return fetchWithTimeout((u, i) => fetch(u, i), `${BASE}${path}`, { ...init, headers }, init.timeoutMs ?? DEFAULT_TIMEOUT_MS, signal);
 }
 
 async function parse<T>(res: Response): Promise<T> {
@@ -59,8 +59,18 @@ async function parse<T>(res: Response): Promise<T> {
   return body as T;
 }
 
+/** Pings the server so a sleeping instance wakes up. Failures are ignored: the sign-in request reports the real error. */
+export async function wakeServer(): Promise<void> {
+  try {
+    await raw('/health', { method: 'GET', timeoutMs: WAKE_TIMEOUT_MS });
+  } catch {
+    /* the sign-in below surfaces the error */
+  }
+}
+
 export async function login(email: string, password: string): Promise<void> {
-  const t = await parse<{ accessToken: string; refreshToken: string }>(await raw('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }));
+  await wakeServer();
+  const t = await parse<{ accessToken: string; refreshToken: string }>(await raw('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }), timeoutMs: WAKE_TIMEOUT_MS }));
   await SecureStore.setItemAsync(ACCESS, t.accessToken);
   await SecureStore.setItemAsync(REFRESH, t.refreshToken);
 }

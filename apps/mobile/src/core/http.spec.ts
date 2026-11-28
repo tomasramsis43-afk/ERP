@@ -41,6 +41,8 @@ describe('safeJson / errorMessage', () => {
 
   it('joins validation message arrays and falls back otherwise', () => {
     expect(errorMessage({ message: ['a', 'b'] }, 'x')).toBe('a; b');
+    expect(errorMessage({ statusCode: 400, error: { message: ['type must be one of MAIN'] } }, 'x')).toBe('type must be one of MAIN');
+    expect(errorMessage({ statusCode: 400, error: { message: 'bad' } }, 'x')).toBe('bad');
     expect(errorMessage({ message: 'boom' }, 'x')).toBe('boom');
     expect(errorMessage(null, 'Bad Gateway')).toBe('Bad Gateway');
   });

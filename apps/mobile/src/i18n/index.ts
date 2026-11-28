@@ -5,7 +5,7 @@ export type Lang = 'ar' | 'en';
 const dict = {
   ar: {
     appName: 'مندوب الميدان',
-    server: 'عنوان الخادم', email: 'البريد الإلكتروني', password: 'كلمة المرور', login: 'دخول', loginFailed: 'تعذر تسجيل الدخول',
+    server: 'عنوان الخادم', email: 'البريد الإلكتروني', password: 'كلمة المرور', login: 'دخول', loginFailed: 'تعذر تسجيل الدخول', waking: 'جارٍ تشغيل الخادم، قد يستغرق ذلك دقيقة…',
     customers: 'العملاء', newSale: 'بيع جديد', collection: 'تحصيل', outbox: 'المزامنة', logout: 'خروج',
     sync: 'مزامنة الآن', syncing: 'جارٍ المزامنة…', lastSync: 'آخر مزامنة', never: 'لم تتم بعد',
     pending: 'بانتظار الإرسال', rejected: 'مرفوضة', nothingPending: 'لا توجد عمليات معلقة',
@@ -25,7 +25,7 @@ const dict = {
   },
   en: {
     appName: 'Field Rep',
-    server: 'Server address', email: 'Email', password: 'Password', login: 'Sign in', loginFailed: 'Sign-in failed',
+    server: 'Server address', email: 'Email', password: 'Password', login: 'Sign in', loginFailed: 'Sign-in failed', waking: 'Starting the server, this can take a minute…',
     customers: 'Customers', newSale: 'New sale', collection: 'Collection', outbox: 'Sync', logout: 'Sign out',
     sync: 'Sync now', syncing: 'Syncing…', lastSync: 'Last sync', never: 'Never',
     pending: 'Waiting to send', rejected: 'Rejected', nothingPending: 'Nothing pending',
