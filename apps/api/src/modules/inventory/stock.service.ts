@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { MovementType, Prisma } from '@prisma/client';
-import { Decimal, dec, roundQty } from '@erp/accounting-engine';
+import { Decimal, averageCostAfterRemoval, dec, roundQty } from '@erp/accounting-engine';
 import { Tx } from '../accounting/journal/journal-posting.service';
 
 export interface ApplyMovementInput {
@@ -22,6 +22,12 @@ export interface ApplyMovementInput {
   batchNo?: string;
   /** Expiry date for FEFO consumption. */
   expiryDate?: Date;
+  /**
+   * OUT only: this movement cancels an earlier receipt that came in at this cost per base unit. The goods then leave at
+   * that cost and the product's weighted average is recomputed without them, so stock valuation keeps matching the
+   * reversing journal entry (which credits inventory at the original cost).
+   */
+  removalCost?: Decimal;
   /** Only callers whose actor holds inventory:override_negative may set this. */
   allowNegative?: boolean;
   /** Mandatory recorded justification when an oversell drives stock below zero. */
@@ -101,7 +107,8 @@ export class StockService {
         },
       });
     } else {
-      unitCost = avgCost;
+      unitCost = input.removalCost ? dec(input.removalCost) : avgCost;
+      const onHandBefore = input.removalCost ? await this.totalOnHand(tx, input.productId) : null;
       if (input.allowNegative) {
         // The caller has already been checked for inventory:override_negative. The reason is
         // mandatory only when the movement actually drives the balance below zero.
@@ -127,6 +134,10 @@ export class StockService {
         }
       }
       consumed = await this.consumeLayers(tx, input.warehouseId, input.productId, qty);
+      if (input.removalCost && onHandBefore) {
+        const newAvg = averageCostAfterRemoval(onHandBefore, avgCost, qty, input.removalCost);
+        await tx.product.update({ where: { id: input.productId }, data: { avgCost: newAvg.toFixed(4) } });
+      }
     }
 
     const movement = await tx.stockMovement.create({
@@ -198,6 +209,8 @@ export class StockService {
         productId: m.productId,
         quantity: dec(m.quantity.toString()).abs(),
         unitCost: dec(m.unitCost.toString()),
+        // A cancelled receipt leaves at its own cost and is taken out of the average. Transfers never changed the average.
+        ...(isIn && m.type !== 'TRANSFER_IN' ? { removalCost: dec(m.unitCost.toString()) } : {}),
         movementDate: date,
         source: `${source}_CANCEL`,
         sourceId,
@@ -205,6 +218,12 @@ export class StockService {
         createdById: actorId,
       });
     }
+  }
+
+  private async totalOnHand(tx: Tx, productId: string): Promise<Decimal> {
+    const [{ total }] = await tx.$queryRaw<{ total: Prisma.Decimal }[]>`
+      SELECT COALESCE(SUM("quantity"), 0) AS total FROM "StockBalance" WHERE "productId" = ${productId}`;
+    return dec(total.toString());
   }
 
   private async updateAverageCost(tx: Tx, productId: string, oldAvg: Decimal, inQty: Decimal, inCost: Decimal) {

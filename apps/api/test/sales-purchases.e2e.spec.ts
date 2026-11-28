@@ -255,4 +255,39 @@ d('sales and purchases full cycle (end to end, requires seeded PostgreSQL)', () 
     expect(await stock()).toBe(all);
     expect(await balanced()).toBe(true);
   });
+  it('cancelling a purchase takes its cost out of the average, so stock value keeps equal to the ledger', async () => {
+    const s = uid();
+    const pid = (
+      await http
+        .post('/products')
+        .set(bearer(admin))
+        .send({ code: `PC-${s}`, nameAr: 'صنف إلغاء', nameEn: 'Cancel item', baseUnitId: unitId, retailPrice: '40', wholesalePrice: '30' })
+        .expect(201)
+    ).body.id as string;
+    const buy = (price: string) =>
+      http
+        .post('/purchases/invoices')
+        .set(bearer(admin))
+        .send({ idempotencyKey: `pc-${uid()}`, invoiceDate: today, supplierId, warehouseId: mainId, paymentKind: 'CREDIT', lines: [{ productId: pid, quantity: '10', unitPrice: price }] })
+        .expect(201);
+    const avg = async () => Number((await http.get(`/products/${pid}`).set(bearer(admin)).expect(200)).body.avgCost);
+    const qty = async () => {
+      const r = await http.get(`/inventory/balances?warehouseId=${mainId}&productId=${pid}`).set(bearer(admin)).expect(200);
+      return r.body.items.length ? Number(r.body.items[0].quantity) : 0;
+    };
+
+    const inv0 = await tb('13');
+    const first = await buy('10'); // 10 @ 10
+    await buy('20'); // 10 @ 20 -> average 15
+    expect(await avg()).toBeCloseTo(15, 4);
+    expect(await tb('13')).toBeCloseTo(inv0 + 300, 2);
+
+    await http.post(`/purchases/invoices/${first.body.id}/cancel`).set(bearer(admin)).send({ reason: 'wrong price' }).expect(201);
+
+    // 10 units remain, all at 20: average 20, value 200, and the ledger moved by the same 200.
+    expect(await qty()).toBe(10);
+    expect(await avg()).toBeCloseTo(20, 4);
+    expect((await qty()) * (await avg())).toBeCloseTo((await tb('13')) - inv0, 2);
+    expect(await balanced()).toBe(true);
+  });
 });
