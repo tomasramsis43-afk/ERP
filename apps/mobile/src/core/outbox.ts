@@ -16,6 +16,18 @@ export type ServerResult =
   | { opId: string; status: 'REJECTED'; error: string }
   | { opId: string; status: 'RETRY'; error: string };
 
+export type DisplayStatus = 'LOCAL_PENDING' | 'SYNCING' | 'RETRY_PENDING' | 'SERVER_REJECTED';
+
+/**
+ * What the representative sees for each queued operation. Accepted operations leave the queue (the server has them
+ * exactly once), so SERVER_ACCEPTED is reported as a count after a sync, never as a row.
+ */
+export function displayStatus(item: OutboxItem, syncing: boolean): DisplayStatus {
+  if (item.status === 'REJECTED') return 'SERVER_REJECTED';
+  if (syncing) return 'SYNCING';
+  return item.attempts > 0 ? 'RETRY_PENDING' : 'LOCAL_PENDING';
+}
+
 /** Operations the next sync should send, oldest first. Rejected ones wait for the user to review them. */
 export function sendable(items: OutboxItem[]): OutboxItem[] {
   return items.filter((i) => i.status === 'PENDING').sort((a, b) => a.clientCreatedAt.localeCompare(b.clientCreatedAt));

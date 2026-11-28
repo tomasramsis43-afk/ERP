@@ -1,11 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { syncApi } from '../api/client';
-import { OutboxItem } from '../core/outbox';
+import { DisplayStatus, OutboxItem, displayStatus } from '../core/outbox';
 import { discardOperation, getDeviceId, local, store } from '../db/database';
 import { t } from '../i18n';
 import { SyncReport, synchronize } from '../sync/syncEngine';
 import { useTheme } from './theme';
+
+const STATUS_KEY: Record<DisplayStatus, 'statusLocalPending' | 'statusSyncing' | 'statusRetry' | 'rejected'> = {
+  LOCAL_PENDING: 'statusLocalPending',
+  SYNCING: 'statusSyncing',
+  RETRY_PENDING: 'statusRetry',
+  SERVER_REJECTED: 'rejected',
+};
 
 export function SyncScreen({ onSynced }: { onSynced: () => void }) {
   const { s, c } = useTheme();
@@ -48,13 +55,14 @@ export function SyncScreen({ onSynced }: { onSynced: () => void }) {
         {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.buttonText}>{t('sync')}</Text>}
       </Pressable>
       {report?.error ? <Text style={s.error}>{report.error}</Text> : null}
+      {report && report.applied > 0 ? <Text style={s.sub}>{t('acceptedByServer')}: {report.applied}</Text> : null}
 
       <Text style={[s.text, { marginTop: 12 }]}>{t('pending')}: {pending.length}</Text>
       {pending.length === 0 ? <Text style={s.sub}>{t('nothingPending')}</Text> : null}
       {pending.map((i) => (
         <View key={i.opId} style={s.card}>
-          <Text style={s.text}>{i.type}</Text>
-          <Text style={s.sub}>{i.clientCreatedAt}</Text>
+          <Text style={s.text}>{i.type} · {t(STATUS_KEY[displayStatus(i, busy)])}</Text>
+          <Text style={s.sub}>{i.clientCreatedAt}{i.attempts > 0 ? ` · ${t('attempts')}: ${i.attempts}` : ''}</Text>
         </View>
       ))}
 
