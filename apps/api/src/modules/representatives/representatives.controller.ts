@@ -25,8 +25,8 @@ export class RepresentativesController {
 
   @Get()
   @RequirePermissions('representatives:view')
-  list(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('q') q?: string) {
-    return this.reps.list(parsePage(page, pageSize), q?.trim() || undefined);
+  list(@CurrentUser() u: AuthUser, @Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('q') q?: string) {
+    return this.reps.list(parsePage(page, pageSize), q?.trim() || undefined, u);
   }
 
   /** The logged-in representative's own profile (mobile app). */
@@ -56,14 +56,14 @@ export class RepresentativesController {
 
   @Get('closings/:closingId')
   @RequirePermissions('representatives:view')
-  closingById(@Param('closingId', ParseUUIDPipe) closingId: string) {
-    return this.closing.get(closingId);
+  closingById(@Param('closingId', ParseUUIDPipe) closingId: string, @CurrentUser() u: AuthUser) {
+    return this.closing.get(closingId, u);
   }
 
   @Get(':id')
   @RequirePermissions('representatives:view')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.reps.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: AuthUser) {
+    return this.reps.get(id, u);
   }
 
   @Post()
@@ -94,8 +94,8 @@ export class RepresentativesController {
 
   @Get(':id/closings')
   @RequirePermissions('representatives:view')
-  closings(@Param('id', ParseUUIDPipe) id: string, @Query('page') page?: string, @Query('pageSize') pageSize?: string) {
-    return this.closing.list(id, parsePage(page, pageSize));
+  closings(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() u: AuthUser, @Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.closing.list(id, parsePage(page, pageSize), u);
   }
 
   // ---- commissions ----
@@ -104,11 +104,12 @@ export class RepresentativesController {
   @RequirePermissions('representatives:view')
   commissionList(
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() u: AuthUser,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('paid') paid?: string,
   ) {
-    return this.commissions.list(id, parsePage(page, pageSize), paid);
+    return this.commissions.list(id, parsePage(page, pageSize), paid, u);
   }
 
   @Post(':id/commissions/pay')

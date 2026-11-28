@@ -4,6 +4,7 @@ import { Decimal, JournalLineInput, dec, reverseLines, roundMoney } from '@erp/a
 import { AuthUser } from '../../common/decorators/auth.decorators';
 import { PageParams } from '../../common/utils/pagination';
 import { VatService } from '../../common/utils/vat.service';
+import { assertOwnRep, repScope } from '../../common/rep-scope';
 import { PrismaService } from '../../database/prisma.service';
 import { SystemAccountsService } from '../accounting/accounts/system-accounts.service';
 import { toDate } from '../accounting/dto/journal.dto';
@@ -60,7 +61,10 @@ export class SalesService {
           where: { idempotencyKey: dto.idempotencyKey },
           include: INCLUDE,
         });
-        if (existing) return existing;
+        if (existing) {
+          assertOwnRep(await repScope(this.prisma, user), existing.representativeId);
+          return existing;
+        }
       }
       throw e;
     }
@@ -69,9 +73,16 @@ export class SalesService {
   private async createOnce(kind: SalesDocKind, dto: CreateSalesReturnDto, user: AuthUser) {
     await this.assertPermissions(dto, user);
     const date = toDate(dto.invoiceDate);
+    // A representative's documents are always their own (and, via repCustodyAccount, from their own van).
+    const scope = await repScope(this.prisma, user);
+    if (scope.restricted) {
+      if (dto.representativeId && dto.representativeId !== scope.repId) throw new ForbiddenException('A representative can only sell on their own behalf');
+      dto = { ...dto, representativeId: scope.repId };
+    }
 
     const result = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.salesInvoice.findUnique({ where: { idempotencyKey: dto.idempotencyKey }, include: INCLUDE });
+      if (existing) assertOwnRep(scope, existing.representativeId);
       if (existing) return { invoice: existing, created: false, negativeLines: 0 };
 
       const warehouse = await tx.warehouse.findUnique({ where: { id: dto.warehouseId } });
@@ -279,7 +290,9 @@ export class SalesService {
     return invoice;
   }
 
-  async list(p: PageParams, f: { kind?: SalesDocKind; customerId?: string; status?: string; from?: string; to?: string; representativeId?: string }) {
+  async list(p: PageParams, f: { kind?: SalesDocKind; customerId?: string; status?: string; from?: string; to?: string; representativeId?: string }, user: AuthUser) {
+    const scope = await repScope(this.prisma, user);
+    if (scope.restricted) f = { ...f, representativeId: scope.repId };
     const where: Prisma.SalesInvoiceWhereInput = {
       ...(f.kind ? { kind: f.kind } : {}),
       ...(f.customerId ? { customerId: f.customerId } : {}),
@@ -302,9 +315,10 @@ export class SalesService {
     return { items, total, page: p.page, pageSize: p.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthUser) {
     const inv = await this.prisma.salesInvoice.findUnique({ where: { id }, include: INCLUDE });
     if (!inv) throw new NotFoundException('Invoice not found');
+    assertOwnRep(await repScope(this.prisma, user), inv.representativeId);
     return inv;
   }
 

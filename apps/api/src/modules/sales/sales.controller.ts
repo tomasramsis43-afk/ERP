@@ -56,14 +56,15 @@ export class SalesController {
     @Query('status') status?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @CurrentUser() user?: AuthUser,
   ) {
-    return this.sales.list(parsePage(page, pageSize), { kind, customerId, representativeId, status, from, to });
+    return this.sales.list(parsePage(page, pageSize), { kind, customerId, representativeId, status, from, to }, user!);
   }
 
   @Get('invoices/:id')
   @RequirePermissions('sales:view')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.sales.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.sales.get(id, user);
   }
 
   @Post('invoices')

@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { Decimal, dec, roundMoney } from '@erp/accounting-engine';
 import { PageParams } from '../../common/utils/pagination';
+import { AuthUser } from '../../common/decorators/auth.decorators';
+import { assertOwnRep, repScope } from '../../common/rep-scope';
 import { PrismaService } from '../../database/prisma.service';
 import { SystemAccountsService } from '../accounting/accounts/system-accounts.service';
 import { toDate } from '../accounting/dto/journal.dto';
@@ -159,7 +161,8 @@ export class CommissionsService {
       .map((o) => ({ sourceKey: `REVERSAL:${o.sourceKey}`, sourceType: 'REVERSAL', sourceId: o.sourceId, amount: dec(o.amount.toString()).negated() }));
   }
 
-  async list(repId: string, p: PageParams, paid?: string) {
+  async list(repId: string, p: PageParams, paid: string | undefined, user: AuthUser) {
+    assertOwnRep(await repScope(this.prisma, user), repId);
     const where: Prisma.CommissionEntryWhereInput = {
       representativeId: repId,
       ...(paid === 'true' ? { paidAt: { not: null } } : paid === 'false' ? { paidAt: null } : {}),
