@@ -76,4 +76,4 @@ Docs: `STATUS_AND_GAPS.md` corrected (mobile screens exist).
 
 ## Production readiness
 **NOT READY.** Blocking items: API tests unverified in this session (run CI on the branch), no device test of the
-mobile app, no Android/iOS build, finding A open. See `KNOWN_LIMITATIONS.md` and `IMPLEMENTATION_ROADMAP.md`.
+mobile app, no Android/iOS build, finding A fixed (CI-verified); representative data isolation fixed (CI-verified). See `KNOWN_LIMITATIONS.md` and `IMPLEMENTATION_ROADMAP.md`.

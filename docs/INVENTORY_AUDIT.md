@@ -8,7 +8,7 @@ PASS (by reading)
 - Lock order is consistent: every caller of `apply` calls `lockBalances` first (balances sorted, then product).
 - FEFO layer consumption is best-effort for legacy stock.
 
-OPEN (finding A, needs DB test + accounting decision)
+FIXED (finding A, removal cost now preserved on purchase cancel; DB-tested in CI)
 - Purchase cancellation: stock leaves at current average cost; the journal reversal mirrors the original cost; the average
   is not recomputed. Stock valuation and the INVENTORY ledger account can diverge (example in `MASTER_AUDIT_REPORT.md`).
   Suggested fix: on purchase cancel, recompute average as `(onHand*avg - qty*originalCost) / (onHand - qty)` when stock

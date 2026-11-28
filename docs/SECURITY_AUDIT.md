@@ -13,7 +13,8 @@ Method legend: STATIC = code read, not executed. TESTED = automated test ran.
 | Mobile token storage | SecureStore (not AsyncStorage). STATIC |
 | Cleartext traffic | FIXED: production builds HTTPS-only; stored http address ignored in production |
 | Device id | Label only, never authentication. TESTED (uuid) |
-| IDOR, branch isolation (`branchScope` from main), user-data isolation | NOT AUDITED |
+| Representative data isolation (IDOR) | FIXED + TESTED in CI: a REPRESENTATIVE-role user without `representatives:approve` sees only their own invoices, customers (own/route), van stock, profile, closings and commissions; cannot sell from the main warehouse or for another rep; a replayed foreign idempotency key is refused (`common/rep-scope.ts`, `test/rep-scope.e2e.spec.ts`). Found by static audit: REST reads were unscoped |
+| Branch isolation (`branchScope`), accounting/treasury/payroll/VAT authorization | NOT AUDITED |
 | Refresh-token rotation internals | NOT AUDITED |
 | File uploads, XSS/CSRF on web | NOT AUDITED |
 | Dependency vulnerabilities | NOT RUN |
