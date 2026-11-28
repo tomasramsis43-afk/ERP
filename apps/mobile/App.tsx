@@ -159,6 +159,10 @@ export default function App() {
         )}
         {tab === 'repReport' && <RepReportScreen />}
         {tab === 'pinSetup' && <PinSetupScreen onDone={() => setTab('more')} />}
+        {tab === 'targetSetup' && <TargetSetupScreen onDone={() => { bump(); setTab('today'); }} onBack={() => setTab('today')} />}
+        {tab === 'photoCapture' && detailCustomer && (
+          <PhotoCaptureScreen customerId={detailCustomer} onDone={() => setTab('customerDetail')} />
+        )}
         {tab === 'notifications' && <NotificationCenterScreen onOpenSync={() => setTab('sync')} />}
         {tab === 'more' && (
           <MoreScreen

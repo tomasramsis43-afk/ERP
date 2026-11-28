@@ -119,7 +119,7 @@ export function CustomerDetailScreen({
         </Pressable>
         <Pressable style={st.action} onPress={() => onCapturePhoto(customerId)} accessibilityRole="button">
           <Ionicons name="camera-outline" size={18} color={c.primary} />
-          <Text style={st.actionText}>{t('scan')}</Text>
+          <Text style={st.actionText}>{t('capturePhoto')}</Text>
         </Pressable>
       </View>
 

@@ -154,24 +154,21 @@ function seedFingerprint(): string {
   });
   const env = [process.env.SEED_ADMIN_EMAIL, process.env.SEED_ADMIN_RESET, process.env.SEED_ADMIN_PASSWORD];
   return createHash('sha256')
-    .update(JSON.stringify([files, env]))
+    .update(JSON.stringify([files, env, allPermissionCodes(), ROLE_CODES, ROLE_NAMES, ROLE_PERMISSIONS]))
     .digest('hex');
 }
 
 const FINGERPRINT_KEY = 'system.seedFingerprint';
 
 async function main(): Promise<void> {
-  // Access control (permissions + roles) is always re-synced: new permission codes added
-  // to shared-types must reach existing deployments even when the rest of the seed is skipped.
-  await seedAccessControl();
-  await seedMainBranch();
-
   const fingerprint = seedFingerprint();
   const stored = await prisma.setting.findUnique({ where: { key: FINGERPRINT_KEY } });
   if (stored && stored.value === fingerprint && process.env.SEED_FORCE !== 'true') {
     console.log('Seed already applied for this version, skipping');
     return;
   }
+  await seedAccessControl();
+  await seedMainBranch();
   await seedAdmin();
   await seedCurrencyAndSettings();
   await seedChartOfAccounts();

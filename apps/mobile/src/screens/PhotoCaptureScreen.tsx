@@ -54,6 +54,9 @@ export function PhotoCaptureScreen({ customerId, onDone }: { customerId: string;
         <Pressable style={st.button} onPress={requestPermission} accessibilityRole="button">
           <Text style={st.buttonText}>{t('allowCamera')}</Text>
         </Pressable>
+        <Pressable style={st.cancelBtn} onPress={onDone} accessibilityRole="button">
+          <Text style={st.cancelText}>{t('back')}</Text>
+        </Pressable>
       </View>
     );
   }
@@ -62,6 +65,9 @@ export function PhotoCaptureScreen({ customerId, onDone }: { customerId: string;
     <View style={st.root}>
       <CameraView ref={cameraRef} style={st.camera} facing="back" />
       <View style={st.bar}>
+        <Pressable style={st.closeBtn} onPress={onDone} disabled={busy} accessibilityRole="button" accessibilityLabel={t('close')}>
+          <Ionicons name="close" size={24} color="#fff" />
+        </Pressable>
         <Pressable style={st.captureBtn} onPress={capture} disabled={busy} accessibilityRole="button">
           <Ionicons name="camera" size={28} color="#fff" />
         </Pressable>
@@ -76,8 +82,11 @@ function makeStyles(c: ReturnType<typeof useTheme>['c'], font: ReturnType<typeof
     title: { color: c.text, fontSize: 16, fontFamily: font.extra, marginBottom: 16, textAlign: 'center' },
     button: { backgroundColor: c.primary, borderRadius: 16, padding: 15, alignItems: 'center', marginTop: 12 },
     buttonText: { color: '#fff', fontSize: 15, fontFamily: font.bold },
+    cancelBtn: { marginTop: 14, padding: 10 },
+    cancelText: { color: c.sub, fontSize: 13, fontFamily: font.bold },
     camera: { flex: 1, width: '100%' },
-    bar: { position: 'absolute', bottom: 30, left: 0, right: 0, alignItems: 'center' },
+    bar: { position: 'absolute', bottom: 30, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 20 },
+    closeBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
     captureBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: '#fff' },
   });
 }

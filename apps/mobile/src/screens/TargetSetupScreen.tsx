@@ -7,7 +7,7 @@ import { useTheme } from './theme';
 
 const MONEY = /^\d{1,14}(\.\d{1,2})?$/;
 
-export function TargetSetupScreen({ onDone }: { onDone: () => void }) {
+export function TargetSetupScreen({ onDone, onBack }: { onDone: () => void; onBack?: () => void }) {
   const { c, font } = useTheme();
   const st = React.useMemo(() => makeStyles(c, font), [c, font]);
   const month = new Date().toISOString().slice(0, 7);
@@ -32,12 +32,18 @@ export function TargetSetupScreen({ onDone }: { onDone: () => void }) {
     setSaving(true);
     try { await clearMonthlyTarget(month); } catch { setSaving(false); return Alert.alert(t('opFailed')); }
     setSaving(false);
-    Alert.alert(t('pinRemoved'));
+    Alert.alert(t('targetRemoved'));
     onDone();
   }
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: c.bg }} contentContainerStyle={st.content} keyboardShouldPersistTaps="handled">
+      {onBack ? (
+        <Pressable style={st.back} onPress={onBack} accessibilityRole="button">
+          <Ionicons name="chevron-forward" size={18} color={c.primary} />
+          <Text style={st.backText}>{t('back')}</Text>
+        </Pressable>
+      ) : null}
       <Text style={st.title}>{t('monthlyTarget')} · {month}</Text>
       {current ? <Text style={st.meta}>{t('monthlyTarget')}: {current}</Text> : <Text style={st.meta}>{t('noTarget')}</Text>}
 
@@ -51,7 +57,7 @@ export function TargetSetupScreen({ onDone }: { onDone: () => void }) {
       {current ? (
         <Pressable style={st.removeBtn} onPress={remove} disabled={saving} accessibilityRole="button">
           <Ionicons name="trash-outline" size={16} color={c.danger} />
-          <Text style={st.removeText}>{t('removePin')}</Text>
+          <Text style={st.removeText}>{t('removeTarget')}</Text>
         </Pressable>
       ) : null}
     </ScrollView>
@@ -61,6 +67,8 @@ export function TargetSetupScreen({ onDone }: { onDone: () => void }) {
 function makeStyles(c: ReturnType<typeof useTheme>['c'], font: ReturnType<typeof useTheme>['font']) {
   return StyleSheet.create({
     content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 28 },
+    back: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 10 },
+    backText: { color: c.primary, fontSize: 12, fontFamily: font.bold },
     title: { color: c.text, fontSize: 22, fontFamily: font.extra, letterSpacing: -0.4, marginBottom: 14 },
     meta: { color: c.sub, fontSize: 11, fontFamily: font.regular, marginBottom: 8 },
     label: { color: c.sub, fontSize: 11, fontFamily: font.bold, marginBottom: 6, marginTop: 10 },

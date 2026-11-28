@@ -54,6 +54,7 @@ const dict = {
     // Phase 5
     topCustomers: 'أكبر العملاء رصيداً', recentCollections: 'آخر التحصيلات', noCollections: 'لا توجد تحصيلات', collectionAlloc: 'توزيع التحصيل',
     notifications: 'الإشعارات',
+    capturePhoto: 'صورة العميل', removeTarget: 'إزالة الهدف', targetRemoved: 'تمت إزالة الهدف', back: 'رجوع',
   },
   en: {
     appName: 'Field Rep',
@@ -103,6 +104,7 @@ const dict = {
     customerNotes: 'Notes', saveNotes: 'Save notes', notesSaved: 'Notes saved',
     topCustomers: 'Top customers by balance', recentCollections: 'Recent collections', noCollections: 'No collections', collectionAlloc: 'Collection allocation',
     notifications: 'Notifications',
+    capturePhoto: 'Customer photo', removeTarget: 'Remove target', targetRemoved: 'Target removed', back: 'Back',
   },
 } as const;
 

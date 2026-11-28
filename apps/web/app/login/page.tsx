@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { useApp } from '@/components/Providers';
 import { Button, Field, Input } from '@/components/ui';
@@ -13,6 +13,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [slow, setSlow] = useState(false);
+
+  // Pre-warm the sleeping API container (Render free tier) while the user types credentials.
+  useEffect(() => {
+    fetch('/api/proxy/health', { cache: 'no-store' }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!busy) { setSlow(false); return; }
+    const timer = window.setTimeout(() => setSlow(true), 3000);
+    return () => window.clearTimeout(timer);
+  }, [busy]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -127,6 +139,11 @@ export default function LoginPage() {
           <Button type="submit" block size="lg" loading={busy}>
             {tr('دخول', 'Sign in')}
           </Button>
+          {slow ? (
+            <div className="muted text-sm" style={{ marginTop: 10, textAlign: 'center' }}>
+              {tr('جارٍ تشغيل الخادم، قد يستغرق ذلك بضع ثوانٍ…', 'Waking up the server, this may take a few seconds…')}
+            </div>
+          ) : null}
           <div className="login-foot">
             {tr('بالدخول أنت توافق على سياسات الشركة وسجل الرقابة.', 'By signing in you accept the company policies and audit trail.')}
           </div>

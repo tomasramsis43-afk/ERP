@@ -26,4 +26,4 @@ USER node
 EXPOSE 3001
 ENTRYPOINT ["/sbin/tini", "--"]
 # Apply migrations, make sure reference data exists (idempotent), then serve.
-CMD ["sh", "-c", "npx prisma migrate deploy && npx ts-node prisma/seed.ts && node dist/main.js"]
+CMD ["sh", "-c", "npx --no-install prisma migrate deploy && npx --no-install ts-node --transpile-only prisma/seed.ts && node dist/main.js"]

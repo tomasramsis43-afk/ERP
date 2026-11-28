@@ -32,7 +32,8 @@ const NAV: NavGroup[] = [
     ar: 'المبيعات',
     en: 'Sales',
     items: [
-      { href: '/sales', ar: 'فواتير ومرتجعات البيع', en: 'Sales & returns', icon: 'cart', perm: 'sales:view' },
+      { href: '/sales', ar: 'فواتير ومرتجعات البيع', en: 'Sales & returns', icon: 'cart', perm: 'sales:view', exact: true },
+      { href: '/sales/orders', ar: 'عروض وأوامر البيع', en: 'Quotes & orders', icon: 'clipboard', perm: 'sales:view' },
       { href: '/customers', ar: 'العملاء', en: 'Customers', icon: 'users', perm: 'customers:view' },
     ],
   },
@@ -40,7 +41,8 @@ const NAV: NavGroup[] = [
     ar: 'المشتريات',
     en: 'Purchasing',
     items: [
-      { href: '/purchases', ar: 'فواتير ومرتجعات الشراء', en: 'Purchases & returns', icon: 'truck', perm: 'purchases:view' },
+      { href: '/purchases', ar: 'فواتير ومرتجعات الشراء', en: 'Purchases & returns', icon: 'truck', perm: 'purchases:view', exact: true },
+      { href: '/purchases/orders', ar: 'أوامر الشراء', en: 'Purchase orders', icon: 'clipboard', perm: 'purchases:view' },
       { href: '/suppliers', ar: 'الموردون', en: 'Suppliers', icon: 'building', perm: 'suppliers:view' },
     ],
   },
@@ -51,8 +53,9 @@ const NAV: NavGroup[] = [
       { href: '/products', ar: 'الأصناف', en: 'Products', icon: 'box', perm: 'products:view' },
       { href: '/catalog', ar: 'الوحدات والتصنيفات', en: 'Units & categories', icon: 'package', perm: 'products:view' },
       { href: '/warehouses', ar: 'المخازن', en: 'Warehouses', icon: 'warehouse', perm: 'inventory:view' },
-      { href: '/inventory', ar: 'أرصدة وحركة المخزون', en: 'Stock & movements', icon: 'layers', perm: 'inventory:view' },
+      { href: '/inventory', ar: 'أرصدة وحركة المخزون', en: 'Stock & movements', icon: 'layers', perm: 'inventory:view', exact: true },
       { href: '/inventory/batches', ar: 'الباتشات والصلاحية', en: 'Batches & expiry', icon: 'layers', perm: 'inventory:view' },
+      { href: '/inventory/counts', ar: 'الجرد المخزني', en: 'Stock counts', icon: 'clipboard', perm: 'inventory:view' },
     ],
   },
   {
@@ -105,7 +108,9 @@ const NAV: NavGroup[] = [
 
 const TITLES: { prefix: string; ar: string; en: string }[] = [
   { prefix: '/dashboard', ar: 'لوحة التحكم', en: 'Dashboard' },
+  { prefix: '/sales/orders', ar: 'عروض وأوامر البيع', en: 'Quotes & orders' },
   { prefix: '/sales', ar: 'المبيعات', en: 'Sales' },
+  { prefix: '/purchases/orders', ar: 'أوامر الشراء', en: 'Purchase orders' },
   { prefix: '/purchases', ar: 'المشتريات', en: 'Purchases' },
   { prefix: '/customers', ar: 'العملاء', en: 'Customers' },
   { prefix: '/suppliers', ar: 'الموردون', en: 'Suppliers' },
@@ -113,6 +118,7 @@ const TITLES: { prefix: string; ar: string; en: string }[] = [
   { prefix: '/catalog', ar: 'الوحدات والتصنيفات', en: 'Units & categories' },
   { prefix: '/warehouses', ar: 'المخازن', en: 'Warehouses' },
   { prefix: '/inventory/batches', ar: 'الباتشات والصلاحية', en: 'Batches & expiry' },
+  { prefix: '/inventory/counts', ar: 'الجرد المخزني', en: 'Stock counts' },
   { prefix: '/inventory', ar: 'المخزون', en: 'Inventory' },
   { prefix: '/representatives/monitor', ar: 'متابعة المناديب', en: 'Rep monitoring' },
   { prefix: '/representatives', ar: 'المناديب', en: 'Representatives' },
@@ -185,7 +191,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="nav-group" key={group.ar}>
               <div className="nav-group-title">{tr(group.ar, group.en)}</div>
               {group.items.map((item) => {
-                const active = item.href === '/dashboard' || item.href === '/reports' || item.href === '/representatives' ? path === item.href : path.startsWith(item.href);
+                const active = item.exact || item.href === '/dashboard' || item.href === '/reports' || item.href === '/representatives' ? path === item.href : path.startsWith(item.href);
                 return (
                   <Link key={item.href} href={item.href} className={`nav-item${active ? ' active' : ''}`}>
                     <Icon name={item.icon} />
