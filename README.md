@@ -31,7 +31,7 @@ Everything below is covered by automated tests that run in CI on every push (Pos
 - No external services are required beyond PostgreSQL. Optional: SMTP/SMS/payment gateways are not integrated.
 
 ## Stack
-TypeScript, NestJS 10, PostgreSQL 16, Prisma 5, decimal.js, Redis, Next.js 14, Expo 52 (React Native). See `docs/architecture/`.
+TypeScript, NestJS 10, PostgreSQL 16, Prisma 5, decimal.js, Redis, Next.js 14, Expo SDK 58 (React Native 0.88, React 19). See `docs/architecture/`.
 
 ## Quick start (development)
 Requirements: Node 20+ (22 recommended), Docker.

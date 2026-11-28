@@ -57,3 +57,22 @@ Typing a partial quantity (`1.`) in the sale screen caused a render crash: `Inva
 `estimateCartTotal` in `apps/mobile/src/core/cart.ts`, using them in `SaleScreen`, and adding a regression test in
 `cart.spec.ts`. After the fix, the emulator showed total `0.00` for `1.` with no red screen, and the sale saved
 correctly once the quantity became `2`. Mobile Jest is now 70/70 and typecheck passes.
+
+## Expo SDK 52 → 58 upgrade (mobile)
+
+Reason: a phone's Expo Go from the Play Store / App Store opens only the current SDK (58); the app was on SDK 52, which only
+the old Expo Go used in the emulator run above could open. Now: expo ~58.1, react-native 0.88.1, react 19.3, expo-sqlite ~58,
+expo-camera ~58, netinfo 12; the old Kotlin 1.9.25 pin was removed (SDK 58 needs the toolchain default).
+
+| Check | Result |
+|---|---|
+| `tsc --noEmit` (mobile) | PASS |
+| mobile jest | PASS 70 in 14 suites |
+| Metro bundle, Android (`expo export`) | PASS, 688 modules |
+| Metro bundle, iOS (`expo export`) | PASS, 690 modules |
+| `expo-doctor` | 18/20; the 2 failures were network-only (could not reach exp.host) |
+| Web typecheck, accounting-engine tests | PASS (no regression from the shared lockfile change) |
+| Run on a real phone / emulator with SDK 58 Expo Go | NOT TESTED |
+| EAS Android/iOS build | NOT TESTED |
+
+The 16 emulator checks above were made on SDK 52 and must be repeated on SDK 58.
