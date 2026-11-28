@@ -9,10 +9,10 @@
 | @erp/web typecheck | PASS | - |
 | @erp/mobile typecheck | PASS | - |
 | @erp/api typecheck | PASS | - |
-| @erp/api database suites | PASS (local PG 16) | 186 passed, 1 failed (performance hook timeout) |
+| @erp/api database suites | PASS (local PG 16) | 187 passed, 0 failed (performance suite passes when run isolated) |
 | @erp/api guard + route-coverage + throttler | PASS | 10 |
 | Security E2E | PASS | (included in API suites) |
-| Performance E2E | FAIL (local hook timeout) | 1 failed |
+| Performance E2E | PASS | 3 (150 concurrent sales, reports, paged lists) |
 | Android/iOS build, device | NOT TESTED | - |
 
 Mobile tests cover: cart/money, receipts, receipt HTML escaping, server URL policy, device id, HTTP helpers (timeout,
