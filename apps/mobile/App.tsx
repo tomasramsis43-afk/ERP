@@ -23,6 +23,7 @@ import { CustomersScreen } from './src/screens/CustomersScreen';
 import { ExpenseScreen } from './src/screens/ExpenseScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { DaySummaryScreen } from './src/screens/DaySummaryScreen';
+import { PhotoCaptureScreen } from './src/screens/PhotoCaptureScreen';
 import { PinLockScreen } from './src/screens/PinLockScreen';
 import { PinSetupScreen } from './src/screens/PinSetupScreen';
 import { NewCustomerScreen } from './src/screens/NewCustomerScreen';
@@ -37,7 +38,7 @@ import { VisitScreen } from './src/screens/VisitScreen';
 import { MoreScreen, MoreTab } from './src/screens/MoreScreen';
 import { useTheme } from './src/screens/theme';
 
-type Tab = 'today' | 'customers' | 'sale' | 'return' | 'collection' | 'van' | 'summary' | 'close' | 'sync' | 'more' | 'visit' | 'expense' | 'newCustomer' | 'customerDetail' | 'repReport' | 'pinSetup' | 'targetSetup';
+type Tab = 'today' | 'customers' | 'sale' | 'return' | 'collection' | 'van' | 'summary' | 'close' | 'sync' | 'more' | 'visit' | 'expense' | 'newCustomer' | 'customerDetail' | 'repReport' | 'pinSetup' | 'targetSetup' | 'photoCapture';
 
 const MORE_TABS: MoreTab[] = ['return', 'van', 'summary', 'close', 'sync'];
 
@@ -129,6 +130,7 @@ export default function App() {
             onVisit={(id) => { setVisitCustomer(id ?? null); setTab('visit'); }}
             onExpense={() => setTab('expense')}
             onNewCustomer={() => setTab('newCustomer')}
+            onCloseDay={() => setTab('close')}
             onSetTarget={() => setTab('targetSetup')}
             onCustomers={() => setTab('customers')}
             onSync={() => setTab('sync')}
@@ -150,12 +152,13 @@ export default function App() {
             customerId={detailCustomer}
             onSell={(id) => { setSaleCustomer(id); setTab('sale'); }}
             onVisit={(id) => { setVisitCustomer(id); setTab('visit'); }}
+            onCapturePhoto={(id) => { setDetailCustomer(id); setTab('photoCapture'); }}
             onBack={() => setTab('customers')}
           />
         )}
         {tab === 'repReport' && <RepReportScreen />}
         {tab === 'pinSetup' && <PinSetupScreen onDone={() => setTab('more')} />}
-        {tab === 'targetSetup' && <TargetSetupScreen onDone={() => setTab('more')} />}
+        {tab === 'photoCapture' && detailCustomer && <PhotoCaptureScreen customerId={detailCustomer} onDone={() => setTab('customerDetail')} />}
         {tab === 'more' && (
           <MoreScreen
             version={version}

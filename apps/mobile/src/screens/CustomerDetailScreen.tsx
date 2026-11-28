@@ -1,7 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { getCustomerPhoto } from './PhotoCaptureScreen';
 import { Customer, local, store } from '../db/database';
 import { get } from '../api/client';
 import { pendingNewCustomers } from '../core/fieldOps';
@@ -19,11 +20,12 @@ interface StatementResp {
 }
 
 export function CustomerDetailScreen({
-  customerId, onSell, onVisit, onBack,
+  customerId, onSell, onVisit, onCapturePhoto, onBack,
 }: {
   customerId: string;
   onSell: (id: string) => void;
   onVisit: (id: string) => void;
+  onCapturePhoto: (id: string) => void;
   onBack: () => void;
 }) {
   const { c, font } = useTheme();
@@ -35,9 +37,11 @@ export function CustomerDetailScreen({
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   useEffect(() => {
     void SecureStore.getItemAsync(`erp.note.${customerId}`).then((v) => { if (v) setNotes(v); });
+    void getCustomerPhoto(customerId).then(setPhotoUri);
   }, [customerId]);
 
   useEffect(() => {
@@ -113,7 +117,17 @@ export function CustomerDetailScreen({
           <Ionicons name="location-outline" size={18} color={c.primary} />
           <Text style={st.actionText}>{t('visit')}</Text>
         </Pressable>
+        <Pressable style={st.action} onPress={() => onCapturePhoto(customerId)} accessibilityRole="button">
+          <Ionicons name="camera-outline" size={18} color={c.primary} />
+          <Text style={st.actionText}>{t('scan')}</Text>
+        </Pressable>
       </View>
+
+      {photoUri ? (
+        <View style={st.card}>
+          <Image source={{ uri: photoUri }} style={st.photo} resizeMode="cover" />
+        </View>
+      ) : null}
 
       {loading ? (
         <View style={st.center}><ActivityIndicator color={c.primary} /></View>
@@ -220,6 +234,7 @@ function makeStyles(c: ReturnType<typeof useTheme>['c'], font: ReturnType<typeof
     statementDate: { color: c.text, fontSize: 10, fontFamily: font.bold },
     divider: { height: 1, backgroundColor: c.border, marginVertical: 8 },
     center: { paddingVertical: 40, alignItems: 'center' },
+    photo: { width: '100%', height: 180, borderRadius: 14 },
     input: { backgroundColor: c.card, color: c.text, borderWidth: 1, borderColor: c.border, borderRadius: 14, padding: 12, fontSize: 14, fontFamily: font.regular },
     button: { backgroundColor: c.primary, borderRadius: 16, padding: 15, alignItems: 'center', marginTop: 14 },
     buttonDisabled: { opacity: 0.5 },
