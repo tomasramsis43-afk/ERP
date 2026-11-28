@@ -22,13 +22,17 @@ interface Props {
   onNewSale: (customerId?: string) => void;
   onCollection: () => void;
   onReturn: () => void;
+  onCustomer: (customerId: string) => void;
+  onVisit: (customerId?: string) => void;
+  onExpense: () => void;
+  onNewCustomer: () => void;
   onCustomers: () => void;
   onSync: () => void;
 }
 
 const money = (v: string | null | undefined) => displayMoney(v);
 
-export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCustomers, onSync }: Props) {
+export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCustomer, onVisit, onExpense, onNewCustomer, onCustomers, onSync }: Props) {
   const { c, font } = useTheme();
   const net = useNetInfo();
   const st = useMemo(() => makeStyles(c, font), [c, font]);
@@ -36,12 +40,13 @@ export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCust
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [visits, setVisits] = useState<VisitToday[]>([]);
   const [summary, setSummary] = useState<DaySummary | null>(null);
+  const [outbox, setOutbox] = useState<Awaited<ReturnType<typeof store.loadOutbox>>>([]);
   const [pending, setPending] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
     const date = todayISO();
-    const [r, cs, vs, receipts, outbox] = await Promise.all([
+    const [r, cs, vs, receipts, ob] = await Promise.all([
       local.rep(),
       local.customers(),
       local.visitsToday(),
@@ -50,9 +55,13 @@ export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCust
     ]);
     setRep(r);
     setCustomers(cs);
-    setVisits(vs);
+    const pendingVisits = ob
+      .filter((o) => o.type === 'VISIT' && o.status === 'PENDING')
+      .map((o) => ({ customerId: String((o.payload as { customerId?: unknown }).customerId ?? ''), outcome: 'PENDING' }));
+    setVisits([...vs, ...pendingVisits]);
     setSummary(summarizeDay(receipts, date));
-    setPending(outbox.filter((o) => o.status === 'PENDING').length);
+    setPending(ob.filter((o) => o.status === 'PENDING').length);
+    setOutbox(ob);
     setLoaded(true);
   }, []);
 
@@ -115,7 +124,10 @@ export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCust
       <View style={st.quick}>
         <QuickAction icon="cash-outline" label={t('collection')} onPress={onCollection} st={st} color={c.primary} />
         <QuickAction icon="return-down-back-outline" label={t('returns')} onPress={onReturn} st={st} color={c.primary} />
-        <QuickAction icon="receipt-outline" label={t('expense')} onPress={() => Alert.alert(t('expense'), t('comingSoon'))} st={st} color={c.primary} />
+      </View>
+      <View style={st.quick}>
+        <QuickAction icon="receipt-outline" label={t('expense')} onPress={onExpense} st={st} color={c.primary} />
+        <QuickAction icon="person-add-outline" label={t('newCustomer')} onPress={onNewCustomer} st={st} color={c.primary} />
       </View>
 
       <View style={st.sectionHead}>
@@ -132,7 +144,7 @@ export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCust
         </View>
       ) : (
         upcoming.map((customer) => (
-          <VisitRow key={customer.id} customer={customer} st={st} c={c} onPress={() => onNewSale(customer.id)} />
+          <VisitRow key={customer.id} customer={customer} st={st} c={c} onPress={() => onCustomer(customer.id)} />
         ))
       )}
 

@@ -17,18 +17,23 @@ import { databaseIsHealthy } from './src/db/database';
 import { Lang, getLang, setLang, t } from './src/i18n';
 import { CollectionScreen } from './src/screens/CollectionScreen';
 import { CloseDayScreen } from './src/screens/CloseDayScreen';
+import { CustomerDetailScreen } from './src/screens/CustomerDetailScreen';
 import { CustomersScreen } from './src/screens/CustomersScreen';
+import { ExpenseScreen } from './src/screens/ExpenseScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { DaySummaryScreen } from './src/screens/DaySummaryScreen';
 import { MoreScreen, MoreTab } from './src/screens/MoreScreen';
+import { NewCustomerScreen } from './src/screens/NewCustomerScreen';
+import { RepReportScreen } from './src/screens/RepReportScreen';
 import { ReturnScreen } from './src/screens/ReturnScreen';
 import { SaleScreen } from './src/screens/SaleScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
 import { VanStockScreen } from './src/screens/VanStockScreen';
+import { VisitScreen } from './src/screens/VisitScreen';
 import { SyncScreen } from './src/screens/SyncScreen';
 import { useTheme } from './src/screens/theme';
 
-type Tab = 'today' | 'customers' | 'sale' | 'return' | 'collection' | 'van' | 'summary' | 'close' | 'sync' | 'more';
+type Tab = 'today' | 'customers' | 'sale' | 'return' | 'collection' | 'van' | 'summary' | 'close' | 'sync' | 'more' | 'visit' | 'expense' | 'newCustomer' | 'customerDetail' | 'repReport';
 
 const MORE_TABS: MoreTab[] = ['return', 'van', 'summary', 'close', 'sync'];
 
@@ -52,6 +57,8 @@ export default function App() {
   const [signedIn, setSignedIn] = useState(false);
   const [tab, setTab] = useState<Tab>('today');
   const [saleCustomer, setSaleCustomer] = useState<string | null>(null);
+  const [detailCustomer, setDetailCustomer] = useState<string | null>(null);
+  const [visitCustomer, setVisitCustomer] = useState<string | null>(null);
   const [version, setVersion] = useState(0); // bumped after each sync/save so screens reload local data
   const [, force] = useState(0);
 
@@ -111,11 +118,15 @@ export default function App() {
             onNewSale={(id) => { setSaleCustomer(id ?? null); setTab('sale'); }}
             onCollection={() => setTab('collection')}
             onReturn={() => setTab('return')}
+            onCustomer={(id) => { setDetailCustomer(id); setTab('customerDetail'); }}
+            onVisit={(id) => { setVisitCustomer(id ?? null); setTab('visit'); }}
+            onExpense={() => setTab('expense')}
+            onNewCustomer={() => setTab('newCustomer')}
             onCustomers={() => setTab('customers')}
             onSync={() => setTab('sync')}
           />
         )}
-        {tab === 'customers' && <CustomersScreen version={version} onSell={(id) => { setSaleCustomer(id); setTab('sale'); }} />}
+        {tab === 'customers' && <CustomersScreen version={version} onSell={(id) => { setSaleCustomer(id); setTab('sale'); }} onOpen={(id) => { setDetailCustomer(id); setTab('customerDetail'); }} />}
         {tab === 'sale' && <SaleScreen key={saleCustomer ?? 'none'} customerId={saleCustomer} onSaved={afterSave} />}
         {tab === 'return' && <ReturnScreen onSaved={afterSave} />}
         {tab === 'van' && <VanStockScreen version={version} />}
@@ -123,10 +134,23 @@ export default function App() {
         {tab === 'collection' && <CollectionScreen onSaved={afterSave} />}
         {tab === 'close' && <CloseDayScreen version={version} onClosed={bump} />}
         {tab === 'sync' && <SyncScreen onSynced={bump} />}
+        {tab === 'visit' && <VisitScreen customerId={visitCustomer} onSaved={afterSave} />}
+        {tab === 'expense' && <ExpenseScreen onSaved={afterSave} />}
+        {tab === 'newCustomer' && <NewCustomerScreen onSaved={afterSave} />}
+        {tab === 'customerDetail' && detailCustomer && (
+          <CustomerDetailScreen
+            customerId={detailCustomer}
+            onSell={(id) => { setSaleCustomer(id); setTab('sale'); }}
+            onVisit={(id) => { setVisitCustomer(id); setTab('visit'); }}
+            onBack={() => setTab('customers')}
+          />
+        )}
+        {tab === 'repReport' && <RepReportScreen />}
         {tab === 'more' && (
           <MoreScreen
             version={version}
             onOpen={(next) => { if (MORE_TABS.includes(next)) setTab(next); }}
+            onOpenReport={() => setTab('repReport')}
             onToggleLanguage={toggleLanguage}
             onLogout={async () => { await logout(); setSignedIn(false); }}
           />
