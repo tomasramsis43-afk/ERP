@@ -345,12 +345,15 @@ export function StatCard({
   hint,
   icon,
   tone,
+  delta,
 }: {
   label: React.ReactNode;
   value: React.ReactNode;
   hint?: React.ReactNode;
   icon?: IconName;
   tone?: 'warn' | 'danger' | 'info';
+  /** Percentage change against a comparison period; null/undefined hides it. `invert` flips good/bad (e.g. purchases). */
+  delta?: { pct: number | null; label: string; invert?: boolean } | null;
 }) {
   return (
     <div className={`kpi ${tone ?? ''}`}>
@@ -359,6 +362,11 @@ export function StatCard({
         <div className="kpi-label">{label}</div>
         <div className="kpi-value">{value}</div>
         {hint ? <div className="kpi-hint">{hint}</div> : null}
+        {delta && delta.pct !== null ? (
+          <div className="kpi-hint" style={{ fontWeight: 600, color: (delta.pct >= 0) !== !!delta.invert ? 'var(--ok, #15803d)' : 'var(--danger, #b91c1c)' }}>
+            {delta.pct >= 0 ? '▲' : '▼'} {Math.abs(delta.pct).toFixed(1)}% <span style={{ fontWeight: 400, color: 'var(--sub)' }}>{delta.label}</span>
+          </div>
+        ) : null}
       </div>
     </div>
   );

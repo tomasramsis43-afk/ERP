@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../../common/decorators/auth.decorators';
 import { AgingReportService } from './aging-report.service';
 import { DashboardService } from './dashboard.service';
+import { DashboardQueryDto } from './dto/dashboard-query.dto';
 import { InventoryReportsService } from './inventory-reports.service';
 import { Lang } from './export-tables';
 import { renderPdf, renderXlsx } from './exporters';
@@ -27,8 +28,8 @@ export class ReportsController {
 
   @Get('dashboard')
   @RequirePermissions('reports:view')
-  summary() {
-    return this.dashboard.summary();
+  summary(@Query() q: DashboardQueryDto) {
+    return this.dashboard.summary(q);
   }
 
   @Get('income-statement')

@@ -128,6 +128,23 @@ d('financial statements, aging, dashboard and exports (requires seeded PostgreSQ
     expect(d1.topCustomers.some((c: { customer?: { id: string } }) => c.customer?.id === customerId)).toBe(true);
   });
 
+  it('the dashboard supports period, branch and representative filters and returns comparison data', async () => {
+    const d30 = (await get('/reports/dashboard?days=30').expect(200)).body;
+    expect(d30.salesTrend).toHaveLength(30);
+    expect(d30.salesTrend[0]).toHaveProperty('previous');
+    expect(d30.comparison).toHaveProperty('salesYesterday');
+    expect(d30.comparison).toHaveProperty('salesPreviousMonthToDate');
+    expect(Array.isArray(d30.topRepresentatives)).toBe(true);
+    // a representative with no sales yields zero sales, while unfiltered totals are unchanged
+    const none = (await get('/reports/dashboard?representativeId=00000000-0000-4000-8000-000000000000').expect(200)).body;
+    expect(n(none.sales.month)).toBe(0);
+    expect(none.filters.representativeId).toBe('00000000-0000-4000-8000-000000000000');
+    const all = await dash();
+    expect(n(all.sales.month)).toBeGreaterThan(0);
+    await get('/reports/dashboard?days=5').expect(400);
+    await get('/reports/dashboard?branchId=not-a-uuid').expect(400);
+  });
+
   it('exports Excel (Arabic and English) and English PDF; refuses Arabic PDF and unknown reports', async () => {
     const xlsx = await binary(`/reports/export/trial-balance?format=xlsx&lang=ar`).expect(200);
     expect(xlsx.headers['content-type']).toContain('spreadsheetml');

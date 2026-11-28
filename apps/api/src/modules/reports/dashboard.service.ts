@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Decimal, dec } from '@erp/accounting-engine';
 import { PrismaService } from '../../database/prisma.service';
+import { DashboardQueryDto } from './dto/dashboard-query.dto';
 
 const num = (v: { toString(): string } | null | undefined) => dec(v?.toString() ?? '0');
 const dayStart = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -11,34 +12,48 @@ const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86_400_000);
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async summary() {
+  /** Sales and purchases can be narrowed to a representative or a branch; balances (cash, receivables...) never are. */
+  async summary(q: DashboardQueryDto = {}) {
     const today = dayStart(new Date());
     const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-    const trendFrom = addDays(today, -13);
+    const days = q.days ?? 14;
+    const trendFrom = addDays(today, -(days - 1));
+    const prevTrendFrom = addDays(trendFrom, -days);
+    const yesterday = addDays(today, -1);
+    const prevMonthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
+    const prevMonthLast = addDays(monthStart, -1);
+    const prevMonthSameDay = addDays(prevMonthStart, today.getUTCDate() - 1);
+    const prevMonthEnd = prevMonthSameDay > prevMonthLast ? prevMonthLast : prevMonthSameDay;
+    const scope = this.scope(q);
 
-    const [salesToday, salesMonth, purchasesMonth, trendRows, topCustomers, topProducts, cash, receivable, payable, inventory, lowStock, cheques] =
+    const [salesToday, salesMonth, purchasesMonth, trendRows, prevTrendRows, topCustomers, topProducts, cash, receivable, payable, inventory, lowStock, cheques, salesYesterday, salesPrevMonth, purchasesPrevMonth, paymentMix, topReps] =
       await Promise.all([
-        this.netSales(today, today),
-        this.netSales(monthStart, today),
+        this.netSales(today, today, scope),
+        this.netSales(monthStart, today, scope),
         this.prisma.purchaseInvoice.aggregate({
-          where: { kind: 'PURCHASE', status: 'POSTED', invoiceDate: { gte: monthStart, lte: today } },
+          where: { kind: 'PURCHASE', status: 'POSTED', invoiceDate: { gte: monthStart, lte: today }, ...(scope.warehouse ? { warehouse: scope.warehouse } : {}) },
           _sum: { total: true },
         }),
         this.prisma.salesInvoice.groupBy({
           by: ['invoiceDate', 'kind'],
-          where: { status: 'POSTED', invoiceDate: { gte: trendFrom, lte: today } },
+          where: { status: 'POSTED', invoiceDate: { gte: trendFrom, lte: today }, ...scope },
+          _sum: { total: true },
+        }),
+        this.prisma.salesInvoice.groupBy({
+          by: ['invoiceDate', 'kind'],
+          where: { status: 'POSTED', invoiceDate: { gte: prevTrendFrom, lt: trendFrom }, ...scope },
           _sum: { total: true },
         }),
         this.prisma.salesInvoice.groupBy({
           by: ['customerId'],
-          where: { kind: 'SALE', status: 'POSTED', invoiceDate: { gte: monthStart, lte: today }, customerId: { not: null } },
+          where: { kind: 'SALE', status: 'POSTED', invoiceDate: { gte: monthStart, lte: today }, customerId: { not: null }, ...scope },
           _sum: { total: true },
           orderBy: { _sum: { total: 'desc' } },
           take: 5,
         }),
         this.prisma.salesInvoiceLine.groupBy({
           by: ['productId'],
-          where: { invoice: { kind: 'SALE', status: 'POSTED', invoiceDate: { gte: monthStart, lte: today } } },
+          where: { invoice: { kind: 'SALE', status: 'POSTED', invoiceDate: { gte: monthStart, lte: today }, ...scope } },
           _sum: { baseQty: true, lineNet: true },
           orderBy: { _sum: { lineNet: 'desc' } },
           take: 5,
@@ -62,9 +77,29 @@ export class DashboardService {
           _count: true,
           _sum: { amount: true },
         }),
+        this.netSales(yesterday, yesterday, scope),
+        this.netSales(prevMonthStart, prevMonthEnd, scope),
+        this.prisma.purchaseInvoice.aggregate({
+          where: { kind: 'PURCHASE', status: 'POSTED', invoiceDate: { gte: prevMonthStart, lte: prevMonthEnd }, ...(scope.warehouse ? { warehouse: scope.warehouse } : {}) },
+          _sum: { total: true },
+        }),
+        this.prisma.salesInvoice.groupBy({
+          by: ['paymentKind'],
+          where: { kind: 'SALE', status: 'POSTED', invoiceDate: { gte: monthStart, lte: today }, ...scope },
+          _sum: { total: true },
+        }),
+        this.prisma.salesInvoice.groupBy({
+          by: ['representativeId'],
+          where: { kind: 'SALE', status: 'POSTED', invoiceDate: { gte: monthStart, lte: today }, representativeId: { not: null }, ...scope },
+          _sum: { total: true },
+          _count: { _all: true },
+          orderBy: { _sum: { total: 'desc' } },
+          take: 5,
+        }),
       ]);
 
-    const [customers, products] = await Promise.all([
+    const [reps, customers, products] = await Promise.all([
+      this.prisma.representative.findMany({ where: { id: { in: topReps.map((r) => r.representativeId!) } }, select: { id: true, code: true, nameAr: true, nameEn: true } }),
       this.prisma.customer.findMany({ where: { id: { in: topCustomers.map((c) => c.customerId!) } }, select: { id: true, code: true, nameAr: true, nameEn: true } }),
       this.prisma.product.findMany({ where: { id: { in: topProducts.map((p) => p.productId) } }, select: { id: true, code: true, nameAr: true, nameEn: true } }),
     ]);
@@ -76,12 +111,32 @@ export class DashboardService {
       const sign = r.kind === 'RETURN' ? -1 : 1;
       trend.set(k, (trend.get(k) ?? new Decimal(0)).plus(num(r._sum.total).times(sign)));
     }
+    // The same number of days immediately before, aligned day by day, so the chart can overlay it.
+    const prev = Array.from({ length: days }, () => new Decimal(0));
+    for (const r of prevTrendRows) {
+      const idx = Math.round((r.invoiceDate.getTime() - prevTrendFrom.getTime()) / 86_400_000);
+      if (idx >= 0 && idx < days) prev[idx] = prev[idx].plus(num(r._sum.total).times(r.kind === 'RETURN' ? -1 : 1));
+    }
+    const mix = (k: 'CASH' | 'CREDIT') => num(paymentMix.find((m) => m.paymentKind === k)?._sum.total).toFixed(2);
 
     return {
       generatedAt: new Date().toISOString(),
+      filters: { days, representativeId: q.representativeId ?? null, branchId: q.branchId ?? null },
       sales: { today: salesToday.toFixed(2), month: salesMonth.toFixed(2) },
+      /** Same-length comparison points: yesterday, and the previous month up to the same day of the month. */
+      comparison: {
+        salesYesterday: salesYesterday.toFixed(2),
+        salesPreviousMonthToDate: salesPrevMonth.toFixed(2),
+        purchasesPreviousMonthToDate: num(purchasesPrevMonth._sum.total).toFixed(2),
+      },
+      salesByPayment: { cash: mix('CASH'), credit: mix('CREDIT') },
+      topRepresentatives: topReps.map((r) => ({
+        representative: reps.find((x) => x.id === r.representativeId),
+        total: num(r._sum.total).toFixed(2),
+        invoices: r._count._all,
+      })),
       purchasesMonth: num(purchasesMonth._sum.total).toFixed(2),
-      salesTrend: [...trend.entries()].map(([date, amount]) => ({ date, amount: amount.toFixed(2) })),
+      salesTrend: [...trend.entries()].map(([date, amount], i) => ({ date, amount: amount.toFixed(2), previous: prev[i].toFixed(2) })),
       cash,
       receivables: receivable.toFixed(2),
       payables: payable.toFixed(2),
@@ -100,10 +155,18 @@ export class DashboardService {
     };
   }
 
-  private async netSales(from: Date, to: Date): Promise<Decimal> {
+  /** The sales-side filter shared by every sales query. */
+  private scope(q: DashboardQueryDto): { representativeId?: string; warehouse?: { branchId: string } } {
+    return {
+      ...(q.representativeId ? { representativeId: q.representativeId } : {}),
+      ...(q.branchId ? { warehouse: { branchId: q.branchId } } : {}),
+    };
+  }
+
+  private async netSales(from: Date, to: Date, scope: { representativeId?: string; warehouse?: { branchId: string } } = {}): Promise<Decimal> {
     const rows = await this.prisma.salesInvoice.groupBy({
       by: ['kind'],
-      where: { status: 'POSTED', invoiceDate: { gte: from, lte: to } },
+      where: { status: 'POSTED', invoiceDate: { gte: from, lte: to }, ...scope },
       _sum: { total: true },
     });
     return rows.reduce((a, r) => a.plus(num(r._sum.total).times(r.kind === 'RETURN' ? -1 : 1)), new Decimal(0));
