@@ -88,7 +88,6 @@ export function CloseDayScreen({ version, onClosed }: { version: number; onClose
 
   return (
     <ScrollView style={s.screen} keyboardShouldPersistTaps="handled">
-      <Text style={s.title}>{t('closeDay')}</Text>
       {unsent > 0 ? <Text style={s.error}>{t('syncFirst')} ({unsent})</Text> : null}
       <Pressable style={[s.button, unsent > 0 || !rep ? { opacity: 0.4 } : null]} disabled={unsent > 0 || !rep || busy} onPress={loadPreview}>
         <Text style={s.buttonText}>{t('preview')}</Text>

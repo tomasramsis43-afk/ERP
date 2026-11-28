@@ -2,7 +2,7 @@ import { daySummaryHtml, esc, receiptHtml } from './receiptHtml';
 import { Receipt, ReceiptLabels, summarizeDay } from './receipts';
 
 const L: ReceiptLabels = {
-  title: { CASH_SALE: 'إيصال بيع نقدي', CREDIT_SALE: 'c', RETURN_GOOD: 'g', RETURN_DAMAGED: 'd', COLLECTION: 'تحصيل' },
+  title: { CASH_SALE: 'إيصال بيع نقدي', CREDIT_SALE: 'c', RETURN_GOOD: 'g', RETURN_DAMAGED: 'd', COLLECTION: 'تحصيل', EXPENSE: 'مصروف' },
   customer: 'العميل', date: 'التاريخ', total: 'الإجمالي', estimate: 'تقدير', ref: 'مرجع',
 };
 const r: Receipt = {
@@ -29,7 +29,7 @@ describe('receipt html', () => {
   });
   it('renders the day summary with the expected cash', () => {
     const sum = summarizeDay([r], '2026-11-28');
-    const html = daySummaryHtml(sum, { title: 'ملخص', date: 'التاريخ', operations: 'o', cashSales: 'cs', creditSales: 'cr', collections: 'co', returnsGood: 'g', returnsDamaged: 'd', cashRefunds: 'cf', expectedCash: 'المتوقع', estimate: 'e' }, 'rtl');
+    const html = daySummaryHtml(sum, { title: 'ملخص', date: 'التاريخ', operations: 'o', cashSales: 'cs', creditSales: 'cr', collections: 'co', returnsGood: 'g', returnsDamaged: 'd', cashRefunds: 'cf', expenses: 'ex', expectedCash: 'المتوقع', estimate: 'e' }, 'rtl');
     expect(html).toContain('30.00');
     expect(html).toContain('المتوقع');
   });

@@ -233,6 +233,39 @@ export function addReceipt(r: Receipt): Promise<void> {
   });
 }
 
+/** Logs a visit: the operation for the server and today's visited list, in one atomic write. */
+export function saveVisit(item: OutboxItem, date: string, customerId: string): Promise<void> {
+  return write(async () => {
+    const d = await db();
+    await d.withTransactionAsync(async () => {
+      await d.runAsync(
+        'INSERT OR IGNORE INTO outbox (opId, type, payload, clientCreatedAt, status, error, attempts) VALUES (?,?,?,?,?,?,?)',
+        [item.opId, item.type, JSON.stringify(item.payload), item.clientCreatedAt, item.status, item.error, item.attempts],
+      );
+      const row = await d.getFirstAsync<{ value: string }>("SELECT value FROM snapshot WHERE key = 'visits'");
+      const cur = row ? (JSON.parse(row.value) as { date: string; ids: string[] }) : { date, ids: [] };
+      const ids = cur.date === date ? cur.ids : [];
+      if (!ids.includes(customerId)) ids.push(customerId);
+      await d.runAsync("INSERT OR REPLACE INTO snapshot (key, value) VALUES ('visits', ?)", [JSON.stringify({ date, ids })]);
+    });
+  });
+}
+
+/** Customers with a logged visit today. */
+export async function visitsForDate(date: string): Promise<string[]> {
+  const d = await db();
+  const row = await d.getFirstAsync<{ value: string }>("SELECT value FROM snapshot WHERE key = 'visits'");
+  const cur = row ? (JSON.parse(row.value) as { date: string; ids: string[] }) : null;
+  return cur && cur.date === date ? cur.ids : [];
+}
+
+/** Receipts from `date` on (the table keeps 30 days). */
+export async function receiptsSince(date: string): Promise<Receipt[]> {
+  const d = await db();
+  const rows = await d.getAllAsync<{ body: string }>('SELECT body FROM receipts WHERE date >= ? ORDER BY createdAt DESC', [date]);
+  return rows.map((x) => JSON.parse(x.body) as Receipt);
+}
+
 export async function receiptsForDate(date: string): Promise<Receipt[]> {
   const d = await db();
   const rows = await d.getAllAsync<{ body: string }>('SELECT body FROM receipts WHERE date = ? ORDER BY createdAt', [date]);

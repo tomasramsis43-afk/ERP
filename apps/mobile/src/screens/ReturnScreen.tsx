@@ -11,13 +11,13 @@ import { useTheme } from './theme';
 
 const QTY = /^\d{1,10}(\.\d{1,4})?$/;
 
-export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
+export function ReturnScreen({ onSaved, customerId }: { onSaved: () => void; customerId?: string }) {
   const { s, c } = useTheme();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [prices, setPrices] = useState<Awaited<ReturnType<typeof local.prices>>>([]);
   const [stock, setStock] = useState<Map<string, string>>(new Map());
-  const [customer, setCustomer] = useState<string | null>(null);
+  const [customer, setCustomer] = useState<string | null>(customerId ?? null);
   const [condition, setCondition] = useState<'GOOD' | 'DAMAGED'>('GOOD');
   const [refund, setRefund] = useState<'CREDIT' | 'CASH'>('CREDIT');
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -100,7 +100,6 @@ export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
 
   return (
     <ScrollView style={s.screen}>
-      <Text style={s.title}>{t('returns')}</Text>
       <Text style={s.sub}>{t('selectCustomer')}</Text>
       <FlatList
         horizontal

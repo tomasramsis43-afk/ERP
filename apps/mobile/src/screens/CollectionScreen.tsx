@@ -9,10 +9,10 @@ import { useTheme } from './theme';
 
 const MONEY = /^\d{1,14}(\.\d{1,2})?$/;
 
-export function CollectionScreen({ onSaved }: { onSaved: () => void }) {
+export function CollectionScreen({ onSaved, customerId }: { onSaved: () => void; customerId?: string }) {
   const { s, c } = useTheme();
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customer, setCustomer] = useState<string | null>(null);
+  const [customer, setCustomer] = useState<string | null>(customerId ?? null);
   const [amount, setAmount] = useState('');
   const saving = useRef(false);
 
@@ -62,7 +62,6 @@ export function CollectionScreen({ onSaved }: { onSaved: () => void }) {
 
   return (
     <View style={s.screen}>
-      <Text style={s.title}>{t('collection')}</Text>
       <FlatList
         data={customers}
         keyExtractor={(x) => x.id}

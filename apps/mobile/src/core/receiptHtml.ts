@@ -12,6 +12,7 @@ export interface SummaryLabels {
   returnsGood: string;
   returnsDamaged: string;
   cashRefunds: string;
+  expenses: string;
   expectedCash: string;
   estimate: string;
 }
@@ -65,6 +66,7 @@ ${row(L.collections, sum.collections)}
 ${row(L.returnsGood, sum.returnsGood)}
 ${row(L.returnsDamaged, sum.returnsDamaged)}
 ${row(L.cashRefunds, sum.cashRefunds)}
+${row(L.expenses, sum.expenses)}
 ${row(L.expectedCash, sum.expectedCash, 'total')}
 </tbody></table>
 <div class="note">${esc(L.estimate)}</div>`,
