@@ -29,6 +29,7 @@ interface Props {
   onVisit: (customerId?: string) => void;
   onExpense: () => void;
   onNewCustomer: () => void;
+  onCloseDay: () => void;
   onSetTarget: () => void;
   onCustomers: () => void;
   onSync: () => void;
@@ -36,7 +37,7 @@ interface Props {
 
 const money = (v: string | null | undefined) => displayMoney(v);
 
-export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCustomer, onVisit, onExpense, onNewCustomer, onSetTarget, onCustomers, onSync }: Props) {
+export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCustomer, onVisit, onExpense, onNewCustomer, onCloseDay, onSetTarget, onCustomers, onSync }: Props) {
   const { c, font } = useTheme();
   const net = useNetInfo();
   const st = useMemo(() => makeStyles(c, font), [c, font]);
@@ -92,6 +93,13 @@ export function TodayScreen({ version, onNewSale, onCollection, onReturn, onCust
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: c.bg }} contentContainerStyle={st.content} showsVerticalScrollIndicator={false}>
+      {new Date().getHours() >= 17 ? (
+        <Pressable style={st.reminder} onPress={onCloseDay} accessibilityRole="button">
+          <Ionicons name="lock-closed-outline" size={16} color="#fff" />
+          <Text style={st.reminderText}>{t('closeDay')}</Text>
+          <Ionicons name="chevron-back" size={16} color="#fff" />
+        </Pressable>
+      ) : null}
       <View style={st.header}>
         <View style={{ flex: 1 }}>
           <Text style={st.date}>{longDate(now, getLang())}</Text>
@@ -295,6 +303,8 @@ function VisitRow({
 function makeStyles(c: ReturnType<typeof useTheme>['c'], font: ReturnType<typeof useTheme>['font']) {
   return StyleSheet.create({
     content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 28 },
+    reminder: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.amber, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12 },
+    reminderText: { color: '#fff', fontSize: 12, fontFamily: font.bold, flex: 1 },
     header: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14 },
     date: { color: c.sub, fontSize: 12, fontFamily: font.regular, marginBottom: 2 },
     hello: { color: c.text, fontSize: 22, fontFamily: font.extra, letterSpacing: -0.4 },
