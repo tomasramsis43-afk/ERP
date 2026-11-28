@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+﻿import { randomUUID } from 'crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -59,26 +59,26 @@ d('offline synchronisation (requires seeded PostgreSQL)', () => {
     admin = (await http.post('/auth/login').send({ email: process.env.SEED_ADMIN_EMAIL, password: process.env.SEED_ADMIN_PASSWORD }).expect(200)).body.accessToken;
 
     const s = uid();
-    const unitId = (await http.post('/units').set(bearer(admin)).send({ code: `U-${s}`, nameAr: 'قطعة', nameEn: 'Piece' }).expect(201)).body.id;
-    mainId = (await http.post('/warehouses').set(bearer(admin)).send({ code: `W-${s}`, nameAr: 'رئيسي', nameEn: 'Main', type: 'MAIN' }).expect(201)).body.id;
-    productId = (await http.post('/products').set(bearer(admin)).send({ code: `P-${s}`, nameAr: 'صنف', nameEn: 'Item', baseUnitId: unitId, retailPrice: '20', wholesalePrice: '15' }).expect(201)).body.id;
-    const supplierId = (await http.post('/suppliers').set(bearer(admin)).send({ code: `S-${s}`, nameAr: 'مورد' }).expect(201)).body.id;
+    const unitId = (await http.post('/units').set(bearer(admin)).send({ code: `U-${s}`, nameAr: 'Ù‚Ø·Ø¹Ø©', nameEn: 'Piece' }).expect(201)).body.id;
+    mainId = (await http.post('/warehouses').set(bearer(admin)).send({ code: `W-${s}`, nameAr: 'Ø±Ø¦ÙŠØ³ÙŠ', nameEn: 'Main', type: 'MAIN' }).expect(201)).body.id;
+    productId = (await http.post('/products').set(bearer(admin)).send({ code: `P-${s}`, nameAr: 'ØµÙ†Ù', nameEn: 'Item', baseUnitId: unitId, retailPrice: '20', wholesalePrice: '15' }).expect(201)).body.id;
+    const supplierId = (await http.post('/suppliers').set(bearer(admin)).send({ code: `S-${s}`, nameAr: 'Ù…ÙˆØ±Ø¯' }).expect(201)).body.id;
     await http.post('/purchases/invoices').set(bearer(admin)).send({ idempotencyKey: `pur-${s}`, invoiceDate: today, supplierId, warehouseId: mainId, paymentKind: 'CREDIT', lines: [{ productId, quantity: '500', unitPrice: '10' }] }).expect(201);
-    const city = (await http.post('/geo-areas').set(bearer(admin)).send({ level: 'CITY', nameAr: 'مدينة', nameEn: `City ${s}` }).expect(201)).body;
-    const routeId = (await http.post('/routes').set(bearer(admin)).send({ code: `RT-${s}`, nameAr: 'خط', nameEn: 'Route', geoAreaId: city.id }).expect(201)).body.id;
-    customerId = (await http.post('/customers').set(bearer(admin)).send({ code: `C-${s}`, nameAr: 'عميل', nameEn: 'Customer', creditLimit: '100000', routeId }).expect(201)).body.id;
+    const city = (await http.post('/geo-areas').set(bearer(admin)).send({ level: 'CITY', nameAr: 'Ù…Ø¯ÙŠÙ†Ø©', nameEn: `City ${s}` }).expect(201)).body;
+    const routeId = (await http.post('/routes').set(bearer(admin)).send({ code: `RT-${s}`, nameAr: 'Ø®Ø·', nameEn: 'Route', geoAreaId: city.id }).expect(201)).body.id;
+    customerId = (await http.post('/customers').set(bearer(admin)).send({ code: `C-${s}`, nameAr: 'Ø¹Ù…ÙŠÙ„', nameEn: 'Customer', creditLimit: '100000', routeId }).expect(201)).body.id;
 
     const u = await newRepUser();
     const vehicle = (await http.post('/vehicles').set(bearer(admin)).send({ plateNumber: `PL-${u.s}`, model: 'Van' }).expect(201)).body;
     vanId = vehicle.warehouseId;
-    repId = (await http.post('/representatives').set(bearer(admin)).send({ code: `R${u.s}`.slice(0, 12), nameAr: 'مندوب', userId: u.userId, vehicleId: vehicle.id, routeId }).expect(201)).body.id;
+    repId = (await http.post('/representatives').set(bearer(admin)).send({ code: `R${u.s}`.slice(0, 12), nameAr: 'Ù…Ù†Ø¯ÙˆØ¨', userId: u.userId, vehicleId: vehicle.id, routeId }).expect(201)).body.id;
     token = (await http.post('/auth/login').send({ email: u.email, password: 'long-password-123' }).expect(200)).body.accessToken;
     await http.post('/inventory/transfers').set(bearer(admin)).send({ date: today, fromWarehouseId: mainId, toWarehouseId: vanId, lines: [{ productId, quantity: '50' }] }).expect(201);
 
     // A second representative, to test isolation between users.
     const o = await newRepUser();
     const v2 = (await http.post('/vehicles').set(bearer(admin)).send({ plateNumber: `PL-${o.s}`, model: 'Van' }).expect(201)).body;
-    await http.post('/representatives').set(bearer(admin)).send({ code: `R${o.s}`.slice(0, 12), nameAr: 'مندوب ٢', userId: o.userId, vehicleId: v2.id }).expect(201);
+    await http.post('/representatives').set(bearer(admin)).send({ code: `R${o.s}`.slice(0, 12), nameAr: 'Ù…Ù†Ø¯ÙˆØ¨ Ù¢', userId: o.userId, vehicleId: v2.id }).expect(201);
     otherToken = (await http.post('/auth/login').send({ email: o.email, password: 'long-password-123' }).expect(200)).body.accessToken;
   });
 
@@ -111,10 +111,10 @@ d('offline synchronisation (requires seeded PostgreSQL)', () => {
     expect(n(none.vanStock.find((x: { productId: string }) => x.productId === productId).quantity)).toBeGreaterThanOrEqual(0);
 
     // A product edited after the cursor comes back; deactivating it flags it so the phone can drop it.
-    await http.patch(`/products/${productId}`).set(bearer(admin)).send({ nameAr: 'صنف معدّل' }).expect(200);
+    await http.patch(`/products/${productId}`).set(bearer(admin)).send({ nameAr: 'ØµÙ†Ù Ù…Ø¹Ø¯Ù‘Ù„' }).expect(200);
     const changed = (await http.get(`/sync/pull?productsSince=${encodeURIComponent(cursor)}`).set(bearer(token)).expect(200)).body;
     const edited = changed.products.find((x: { id: string }) => x.id === productId);
-    expect(edited.nameAr).toBe('صنف معدّل');
+    expect(edited.nameAr).toBe('ØµÙ†Ù Ù…Ø¹Ø¯Ù‘Ù„');
     expect(edited.isActive).toBe(true);
     await http.patch(`/products/${productId}`).set(bearer(admin)).send({ isActive: false }).expect(200);
     const removed = (await http.get(`/sync/pull?productsSince=${encodeURIComponent(cursor)}`).set(bearer(token)).expect(200)).body;
@@ -128,11 +128,11 @@ d('offline synchronisation (requires seeded PostgreSQL)', () => {
     const cash0 = await custody();
     const stock0 = await vanQty();
     const batch = [
-      sale({ clientCreatedAt: at(1) }), // 2 × 20 cash = 40
+      sale({ clientCreatedAt: at(1) }), // 2 Ã— 20 cash = 40
       sale({ clientCreatedAt: at(2), payload: { invoiceDate: today, paymentKind: 'CREDIT', customerId, lines: [{ productId, quantity: '3' }] } }), // 60 credit
       { opId: randomUUID(), type: 'COLLECTION', clientCreatedAt: at(3), payload: { customerId, amount: '25', date: today } },
     ];
-    const first = (await push(batch).expect(201)).body.results;
+    const first = (await push(batch).expect(200)).body.results;
     expect(first.map((x: { status: string }) => x.status)).toEqual(['APPLIED', 'APPLIED', 'APPLIED']);
     expect(await custody()).toBeCloseTo(cash0 + 40 + 25, 2);
     expect(await vanQty()).toBe(stock0 - 5);
@@ -160,7 +160,7 @@ d('offline synchronisation (requires seeded PostgreSQL)', () => {
   it('the server decides the warehouse and representative; a tampered payload cannot sell from the main warehouse', async () => {
     const stock0 = await vanQty();
     const main0 = (await http.get(`/inventory/balances?warehouseId=${mainId}&productId=${productId}`).set(bearer(admin)).expect(200)).body.items[0].quantity;
-    const r = (await push([sale({ payload: { invoiceDate: today, paymentKind: 'CASH', warehouseId: mainId, representativeId: randomUUID(), lines: [{ productId, quantity: '1' }] } })]).expect(201)).body.results[0];
+    const r = (await push([sale({ payload: { invoiceDate: today, paymentKind: 'CASH', warehouseId: mainId, representativeId: randomUUID(), lines: [{ productId, quantity: '1' }] } })]).expect(200)).body.results[0];
     // The forged warehouse and representative are overwritten with the server's own values.
     expect(r.status).toBe('APPLIED');
     expect(await vanQty()).toBe(stock0 - 1);
@@ -170,26 +170,26 @@ d('offline synchronisation (requires seeded PostgreSQL)', () => {
 
   it('a business failure is rejected once, kept, and never retried into success', async () => {
     const op = sale({ payload: { invoiceDate: today, paymentKind: 'CASH', lines: [{ productId, quantity: '100000' }] } });
-    const r1 = (await push([op]).expect(201)).body.results[0];
+    const r1 = (await push([op]).expect(200)).body.results[0];
     expect(r1.status).toBe('REJECTED');
     expect(r1.error).toBeTruthy();
     // Stock arrives afterwards; the old operation stays rejected, the device must create a new one.
     await http.post('/inventory/transfers').set(bearer(admin)).send({ date: today, fromWarehouseId: mainId, toWarehouseId: vanId, lines: [{ productId, quantity: '10' }] }).expect(201);
-    const r2 = (await push([op]).expect(201)).body.results[0];
+    const r2 = (await push([op]).expect(200)).body.results[0];
     expect(r2).toMatchObject({ status: 'REJECTED', error: r1.error });
   });
 
   it('one bad operation does not block the others in the batch', async () => {
     const bad = sale({ clientCreatedAt: at(10), payload: { invoiceDate: today, paymentKind: 'CASH', lines: [{ productId, quantity: '999999' }] } });
     const good = sale({ clientCreatedAt: at(11) });
-    const res = (await push([bad, good]).expect(201)).body.results;
+    const res = (await push([bad, good]).expect(200)).body.results;
     expect(res.map((x: { status: string }) => x.status)).toEqual(['REJECTED', 'APPLIED']);
   });
 
   it("an operation id cannot be reused by another representative; users without a profile are refused", async () => {
     const op = sale();
-    expect((await push([op]).expect(201)).body.results[0].status).toBe('APPLIED');
-    const stolen = (await push([op], otherToken, 'device-2').expect(201)).body.results[0];
+    expect((await push([op]).expect(200)).body.results[0].status).toBe('APPLIED');
+    const stolen = (await push([op], otherToken, 'device-2').expect(200)).body.results[0];
     expect(stolen.status).toBe('REJECTED');
     await push([sale()], admin).expect(404); // the admin has no representative profile
     await http.get('/sync/pull').set(bearer(admin)).expect(404);
@@ -233,7 +233,7 @@ d('offline synchronisation (requires seeded PostgreSQL)', () => {
   });
 
   it('field operations: a new customer is created for this representative and route, once', async () => {
-    const op = { opId: randomUUID(), type: 'CUSTOMER', clientCreatedAt: at(1), payload: { nameAr: 'عميل جديد', nameEn: 'New shop', phone: '01000000000', address: 'Main street' } };
+    const op = { opId: randomUUID(), type: 'CUSTOMER', clientCreatedAt: at(1), payload: { nameAr: 'Ø¹Ù…ÙŠÙ„ Ø¬Ø¯ÙŠØ¯', nameEn: 'New shop', phone: '01000000000', address: 'Main street' } };
     const first = (await push([op]).expect(200)).body.results[0];
     expect(first.status).toBe('APPLIED');
     const replay = (await push([op]).expect(200)).body.results[0];
@@ -241,7 +241,7 @@ d('offline synchronisation (requires seeded PostgreSQL)', () => {
     expect(replay.resultId).toBe(first.resultId);
     const pulled = (await http.get('/sync/pull').set(bearer(token)).expect(200)).body;
     const created = pulled.customers.find((c: { id: string }) => c.id === first.resultId);
-    expect(created.nameAr).toBe('عميل جديد');
+    expect(created.nameAr).toBe('Ø¹Ù…ÙŠÙ„ Ø¬Ø¯ÙŠØ¯');
     expect(n(created.creditLimit)).toBe(0); // a phone cannot grant itself credit
     const bad = (await push([{ opId: randomUUID(), type: 'CUSTOMER', clientCreatedAt: at(2), payload: { nameAr: 'x', creditLimit: '999999' } }]).expect(200)).body.results[0];
     expect(bad.status).toBe('REJECTED');
