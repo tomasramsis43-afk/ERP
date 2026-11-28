@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, SalesDocKind } from '@prisma/client';
 import { Decimal, JournalLineInput, dec, reverseLines, roundMoney } from '@erp/accounting-engine';
-import { AuthUser } from '../../common/decorators/auth.decorators';
+import { AuthUser, branchScope } from '../../common/decorators/auth.decorators';
 import { PageParams } from '../../common/utils/pagination';
 import { VatService } from '../../common/utils/vat.service';
 import { PrismaService } from '../../database/prisma.service';
@@ -68,6 +68,7 @@ export class SalesService {
 
   private async createOnce(kind: SalesDocKind, dto: CreateSalesReturnDto, user: AuthUser) {
     await this.assertPermissions(dto, user);
+    await this.assertWarehouseInBranch(dto.warehouseId, user);
     const date = toDate(dto.invoiceDate);
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -279,8 +280,11 @@ export class SalesService {
     return invoice;
   }
 
-  async list(p: PageParams, f: { kind?: SalesDocKind; customerId?: string; status?: string; from?: string; to?: string; representativeId?: string }) {
+  async list(p: PageParams, f: { kind?: SalesDocKind; customerId?: string; status?: string; from?: string; to?: string; representativeId?: string }, actor?: AuthUser) {
+    const branch = actor ? branchScope(actor) : null;
     const where: Prisma.SalesInvoiceWhereInput = {
+      // Branch-restricted users only see documents issued from their own branch's warehouses.
+      ...(branch ? { warehouse: { branchId: branch } } : {}),
       ...(f.kind ? { kind: f.kind } : {}),
       ...(f.customerId ? { customerId: f.customerId } : {}),
       ...(f.representativeId ? { representativeId: f.representativeId } : {}),
@@ -302,10 +306,21 @@ export class SalesService {
     return { items, total, page: p.page, pageSize: p.pageSize };
   }
 
-  async get(id: string) {
-    const inv = await this.prisma.salesInvoice.findUnique({ where: { id }, include: INCLUDE });
-    if (!inv) throw new NotFoundException('Invoice not found');
-    return inv;
+  async get(id: string, actor?: AuthUser) {
+    const inv = await this.prisma.salesInvoice.findUnique({ where: { id }, include: { ...INCLUDE, warehouse: { select: { branchId: true } } } });
+    const branch = actor ? branchScope(actor) : null;
+    // Same answer for "missing" and "other branch" so ids cannot be probed across branches.
+    if (!inv || (branch && inv.warehouse.branchId !== branch)) throw new NotFoundException('Invoice not found');
+    const { warehouse: _warehouse, ...rest } = inv;
+    return rest;
+  }
+
+  /** A branch-restricted user may only issue documents from a warehouse of their own branch. */
+  private async assertWarehouseInBranch(warehouseId: string, user: AuthUser): Promise<void> {
+    const branch = branchScope(user);
+    if (!branch) return;
+    const wh = await this.prisma.warehouse.findUnique({ where: { id: warehouseId }, select: { branchId: true } });
+    if (!wh || wh.branchId !== branch) throw new ForbiddenException('The warehouse belongs to another branch');
   }
 
   // ---- internals ------------------------------------------------------
