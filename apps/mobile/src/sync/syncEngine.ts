@@ -1,14 +1,13 @@
 import { OutboxItem, ServerResult, batches, sendable } from '../core/outbox';
+import { Snapshot, SnapshotMismatchError } from '../core/snapshotMerge';
+
+export type { Snapshot };
 
 /** Server operations the engine needs; implemented over HTTP in the app and by a fake in tests. */
 export interface SyncApi {
   push(deviceId: string, operations: { opId: string; type: string; clientCreatedAt: string; payload: Record<string, unknown> }[]): Promise<ServerResult[]>;
-  pull(): Promise<Snapshot>;
-}
-
-export interface Snapshot {
-  serverTime: string;
-  [key: string]: unknown;
+  /** `since` is the serverTime of the last successful pull; null asks for the full snapshot. */
+  pull(since: string | null): Promise<Snapshot>;
 }
 
 /** Local persistence the engine needs; SQLite in the app, memory in tests. */
@@ -19,6 +18,9 @@ export interface SyncStore {
    * It must never rewrite the whole queue: a sale saved while a sync is in flight has to survive.
    */
   applyServerResults(results: ServerResult[]): Promise<void>;
+  /** serverTime of the last stored snapshot, or null if none. */
+  lastSyncTime(): Promise<string | null>;
+  /** Stores a snapshot; a delta is merged into the local data and throws SnapshotMismatchError if it cannot be. */
   saveSnapshot(s: Snapshot): Promise<void>;
 }
 
@@ -70,10 +72,26 @@ async function run(api: SyncApi, store: SyncStore, deviceId: string): Promise<Sy
   report.pending = sendable(await store.loadOutbox()).length;
   if (report.pending > 0) return report;
   try {
-    await store.saveSnapshot(await api.pull());
+    await pullAndStore(api, store);
     report.pulled = true;
   } catch (e) {
     report.error = e instanceof Error ? e.message : String(e);
   }
   return report;
+}
+
+/** After this long without a pull the phone asks for everything again, a safety net for any change a delta could miss. */
+const FULL_RESYNC_AFTER_MS = 24 * 60 * 60 * 1000;
+
+async function pullAndStore(api: SyncApi, store: SyncStore): Promise<void> {
+  const last = await store.lastSyncTime();
+  const lastMs = last ? Date.parse(last) : NaN;
+  const useDelta = Number.isFinite(lastMs) && Date.now() - lastMs < FULL_RESYNC_AFTER_MS;
+  try {
+    await store.saveSnapshot(await api.pull(useDelta ? last : null));
+  } catch (e) {
+    // A delta that does not fit what is stored is not an error for the user: fetch everything instead.
+    if (!(e instanceof SnapshotMismatchError) || !useDelta) throw e;
+    await store.saveSnapshot(await api.pull(null));
+  }
 }

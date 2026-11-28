@@ -3,6 +3,7 @@ import { CustomerPrice, Product } from '../core/cart';
 import * as Crypto from 'expo-crypto';
 import { OutboxItem, ServerResult } from '../core/outbox';
 import { Receipt, pruneReceipts } from '../core/receipts';
+import { mergeSnapshot } from '../core/snapshotMerge';
 import { Snapshot, SyncStore } from '../sync/syncEngine';
 
 export interface Customer {
@@ -72,6 +73,8 @@ const rowToItem = (r: Record<string, unknown>): OutboxItem => ({
   attempts: r.attempts as number,
 });
 
+const SNAPSHOT_KEYS = ['representative', 'customers', 'customerPrices', 'products', 'vanStock', 'serverTime'];
+
 export const store: SyncStore = {
   async loadOutbox() {
     const d = await db();
@@ -91,12 +94,16 @@ export const store: SyncStore = {
       }
     });
   },
+  async lastSyncTime() {
+    return read<string | null>('serverTime', null);
+  },
   async saveSnapshot(s: Snapshot) {
     const d = await db();
     await d.withTransactionAsync(async () => {
-      for (const key of ['representative', 'customers', 'customerPrices', 'products', 'vanStock', 'serverTime']) {
-        await d.runAsync('INSERT OR REPLACE INTO snapshot (key, value) VALUES (?, ?)', [key, JSON.stringify(s[key] ?? null)]);
-      }
+      const prev: Record<string, unknown> = {};
+      for (const key of SNAPSHOT_KEYS) prev[key] = await read<unknown>(key, null);
+      const next = mergeSnapshot(prev, s); // throws SnapshotMismatchError before anything is written
+      for (const key of SNAPSHOT_KEYS) await d.runAsync('INSERT OR REPLACE INTO snapshot (key, value) VALUES (?, ?)', [key, JSON.stringify(next[key] ?? null)]);
     });
   },
 };

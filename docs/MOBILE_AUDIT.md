@@ -11,6 +11,6 @@ Findings from reading the source (not from a device run). Status: FIXED = change
 | 5 | High | Application id `com.example.erpfield` (Android and iOS) | OPEN: changing it breaks updates of installed copies; decide before the first real distribution |
 | 6 | Medium | No request timeout, unguarded `JSON.parse`, concurrent refresh calls with rotating refresh tokens | FIXED in `api/client.ts` (20 s timeout, safe parse, single-flight refresh); not unit tested |
 | 7 | Medium | No sync lock; no SQLite schema versioning | FIXED: in-flight sync is shared; `PRAGMA user_version` migrations. Upgrade of an existing database not tested on a device |
-| 8 | Medium | Pull is a full snapshot | OPEN: needs a server change-feed endpoint |
+| 8 | Medium | Pull is a full snapshot | FIXED: `GET /sync/pull?since=` returns a delta (changed products/customers, removed products, full balances, prices, van stock, customer id list); the phone merges by id (`core/snapshotMerge.ts`, jest) and falls back to a full pull on any mismatch or after 24 h. Old servers that ignore `since` still work. Deactivated customers are handled through the customer id list; a product whose row is untouched when only its units change is covered by the 24 h full pull |
 | 9 | Medium | Release APK is debug-signed | OPEN: needs a production keystore (not committed) |
 | 10 | Info | Screens never run on a device; no barcode, push, printing | OPEN |

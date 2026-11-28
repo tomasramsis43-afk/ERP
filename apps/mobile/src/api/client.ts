@@ -2,7 +2,8 @@ import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { normalizeServerUrl } from '../core/serverUrl';
 import { ServerResult } from '../core/outbox';
-import { Snapshot, SyncApi } from '../sync/syncEngine';
+import { Snapshot } from '../core/snapshotMerge';
+import { SyncApi } from '../sync/syncEngine';
 
 const DEFAULT_BASE = (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ?? 'http://10.0.2.2:3001/api/v1';
 const SERVER = 'erp.server';
@@ -116,5 +117,5 @@ export const syncApi: SyncApi = {
     const r = await authed<{ results: ServerResult[] }>('/sync/push', { method: 'POST', body: JSON.stringify({ deviceId, operations }) });
     return r.results;
   },
-  pull: () => authed<Snapshot>('/sync/pull'),
+  pull: (since) => authed<Snapshot>(since ? `/sync/pull?since=${encodeURIComponent(since)}` : '/sync/pull'),
 };

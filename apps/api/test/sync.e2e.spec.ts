@@ -96,6 +96,26 @@ d('offline synchronisation (requires seeded PostgreSQL)', () => {
     expect(n(r.vanStock.find((s: { productId: string }) => s.productId === productId).quantity)).toBe(50);
   });
 
+  it('pull is a full snapshot by default and a delta when given a usable since', async () => {
+    const full = (await http.get('/sync/pull').set(bearer(token)).expect(200)).body;
+    expect(full.mode).toBe('FULL');
+
+    // Unusable cursors fall back to the full snapshot instead of failing.
+    for (const bad of ['garbage', new Date(Date.now() + 3_600_000).toISOString()]) {
+      const r = (await http.get('/sync/pull').query({ since: bad }).set(bearer(token)).expect(200)).body;
+      expect(r.mode).toBe('FULL');
+    }
+
+    const hourAgo = new Date(Date.now() - 3_600_000).toISOString();
+    const delta = (await http.get('/sync/pull').query({ since: hourAgo }).set(bearer(token)).expect(200)).body;
+    expect(delta.mode).toBe('DELTA');
+    expect(delta.products.some((x: { id: string }) => x.id === productId)).toBe(true); // changed within the window
+    expect(delta.customerIds).toContain(customerId);
+    expect(delta.customerBalances.some((b: { id: string }) => b.id === customerId)).toBe(true);
+    expect(delta.vanStock.some((x: { productId: string }) => x.productId === productId)).toBe(true);
+    expect(Array.isArray(delta.removedProductIds)).toBe(true);
+  });
+
   it('applies a batch in creation order, and replaying the same batch changes nothing', async () => {
     const cash0 = await custody();
     const stock0 = await vanQty();

@@ -1,4 +1,5 @@
 import { OutboxItem, ServerResult, applyResults } from '../core/outbox';
+import { SnapshotMismatchError } from '../core/snapshotMerge';
 import { Snapshot, SyncApi, SyncStore, synchronize } from './syncEngine';
 
 const item = (opId: string, at: string, over: Partial<OutboxItem> = {}): OutboxItem => ({
@@ -6,20 +7,21 @@ const item = (opId: string, at: string, over: Partial<OutboxItem> = {}): OutboxI
 });
 
 function fakeStore(initial: OutboxItem[]) {
-  const state = { outbox: initial, snapshot: null as Snapshot | null };
+  const state = { outbox: initial, snapshot: null as Snapshot | null, lastSync: null as string | null, reject: false };
   const store: SyncStore = {
     loadOutbox: async () => state.outbox,
     applyServerResults: async (r) => { state.outbox = applyResults(state.outbox, r); },
-    saveSnapshot: async (s) => { state.snapshot = s; },
+    lastSyncTime: async () => state.lastSync,
+    saveSnapshot: async (s) => { state.snapshot = s; if (state.reject && s.mode === 'DELTA') throw new SnapshotMismatchError('x'); state.lastSync = s.serverTime; },
   };
   return { state, store };
 }
 
 function fakeApi(answer: (ops: { opId: string }[]) => ServerResult[], pullFails = false) {
-  const calls = { push: [] as string[][], pull: 0 };
+  const calls = { push: [] as string[][], pull: 0, since: [] as (string | null)[] };
   const api: SyncApi = {
     push: async (_d, ops) => { calls.push.push(ops.map((o) => o.opId)); return answer(ops); },
-    pull: async () => { calls.pull += 1; if (pullFails) throw new Error('offline'); return { serverTime: 'now' }; },
+    pull: async (since) => { calls.pull += 1; calls.since.push(since); if (pullFails) throw new Error('offline'); return { serverTime: new Date().toISOString(), mode: since ? 'DELTA' : 'FULL' }; },
   };
   return { api, calls };
 }
@@ -119,5 +121,35 @@ describe('synchronize concurrency', () => {
     const [r1, r2] = await Promise.all([synchronize(api, store, 'dev'), synchronize(api, store, 'dev')]);
     expect(calls.push).toEqual([['a']]);
     expect(r1).toBe(r2);
+  });
+});
+
+describe('synchronize pull mode', () => {
+  it('asks for everything the first time, then only for changes since the last pull', async () => {
+    const { store } = fakeStore([]);
+    const { api, calls } = fakeApi(applied);
+    await synchronize(api, store, 'dev');
+    await synchronize(api, store, 'dev');
+    expect(calls.since[0]).toBeNull();
+    expect(typeof calls.since[1]).toBe('string');
+  });
+
+  it('asks for everything again when the last pull is older than a day', async () => {
+    const { store, state } = fakeStore([]);
+    state.lastSync = new Date(Date.now() - 25 * 3_600_000).toISOString();
+    const { api, calls } = fakeApi(applied);
+    await synchronize(api, store, 'dev');
+    expect(calls.since).toEqual([null]);
+  });
+
+  it('falls back to a full snapshot when a delta does not fit the local data', async () => {
+    const { store, state } = fakeStore([]);
+    state.lastSync = new Date().toISOString();
+    state.reject = true;
+    const { api, calls } = fakeApi(applied);
+    const r = await synchronize(api, store, 'dev');
+    expect(calls.since.map((x) => x === null)).toEqual([false, true]);
+    expect(r).toMatchObject({ pulled: true });
+    expect(r.error).toBeUndefined();
   });
 });
