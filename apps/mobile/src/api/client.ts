@@ -15,6 +15,22 @@ export class ApiError extends Error {
   }
 }
 
+/** The request never produced an HTTP answer (offline, DNS, timeout). Callers keep the operation queued and retry later. */
+export class NetworkError extends Error {
+  constructor(readonly kind: 'TIMEOUT' | 'OFFLINE', message: string) {
+    super(message);
+  }
+}
+
+/** The refresh token was refused: the user must log in again. Local operations stay in the outbox. */
+export class SessionExpiredError extends ApiError {
+  constructor() {
+    super(401, 'SESSION_EXPIRED');
+  }
+}
+
+const REQUEST_TIMEOUT_MS = 30_000;
+
 export async function getServerUrl(): Promise<string> {
   return (await SecureStore.getItemAsync(SERVER)) ?? DEFAULT_BASE;
 }
@@ -30,12 +46,30 @@ async function raw(path: string, init: RequestInit & { token?: string }): Promis
   const BASE = await getServerUrl();
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(init.headers as Record<string, string>) };
   if (init.token) headers.Authorization = `Bearer ${init.token}`;
-  return fetch(`${BASE}${path}`, { ...init, headers });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(`${BASE}${path}`, { ...init, headers, signal: init.signal ?? controller.signal });
+  } catch (e) {
+    const timedOut = controller.signal.aborted;
+    throw new NetworkError(timedOut ? 'TIMEOUT' : 'OFFLINE', timedOut ? 'Request timed out' : e instanceof Error ? e.message : 'Network request failed');
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function parse<T>(res: Response): Promise<T> {
   const text = await res.text();
-  const body = text ? JSON.parse(text) : null;
+  let body: { message?: string | string[] } | null = null;
+  if (text) {
+    try {
+      body = JSON.parse(text) as { message?: string | string[] };
+    } catch {
+      // A proxy error page or truncated body is not JSON; report the status instead of crashing.
+      if (!res.ok) throw new ApiError(res.status, res.statusText || `HTTP ${res.status}`);
+      throw new ApiError(res.status, 'Invalid server response');
+    }
+  }
   if (!res.ok) throw new ApiError(res.status, Array.isArray(body?.message) ? body.message.join('; ') : body?.message ?? res.statusText);
   return body as T;
 }
@@ -54,11 +88,26 @@ export async function logout(): Promise<void> {
 export const hasSession = async (): Promise<boolean> => Boolean(await SecureStore.getItemAsync(REFRESH));
 
 /** Refresh tokens rotate: the new pair replaces the old one, and a failed refresh means logging in again. */
-async function refresh(): Promise<boolean> {
+let refreshInFlight: Promise<boolean> | null = null;
+
+/** Concurrent 401s share one refresh request; with rotating tokens a second parallel refresh would invalidate the first. */
+function refresh(): Promise<boolean> {
+  refreshInFlight ??= doRefresh().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+async function doRefresh(): Promise<boolean> {
   const refreshToken = await SecureStore.getItemAsync(REFRESH);
   if (!refreshToken) return false;
   const res = await raw('/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) });
-  if (!res.ok) return false;
+  if (res.status === 401 || res.status === 403) {
+    // Refused for good: drop the dead tokens (the outbox is untouched).
+    await logout();
+    return false;
+  }
+  if (!res.ok) throw new ApiError(res.status, 'Token refresh failed');
   const t = (await res.json()) as { accessToken: string; refreshToken: string };
   await SecureStore.setItemAsync(ACCESS, t.accessToken);
   await SecureStore.setItemAsync(REFRESH, t.refreshToken);
@@ -68,7 +117,8 @@ async function refresh(): Promise<boolean> {
 async function authed<T>(path: string, init: RequestInit = {}): Promise<T> {
   let token = (await SecureStore.getItemAsync(ACCESS)) ?? undefined;
   let res = await raw(path, { ...init, token });
-  if (res.status === 401 && (await refresh())) {
+  if (res.status === 401) {
+    if (!(await refresh())) throw new SessionExpiredError();
     token = (await SecureStore.getItemAsync(ACCESS)) ?? undefined;
     res = await raw(path, { ...init, token });
   }

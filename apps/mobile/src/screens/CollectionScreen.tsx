@@ -1,8 +1,9 @@
 import * as Crypto from 'expo-crypto';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Alert, FlatList, Pressable, Text, TextInput, View } from 'react-native';
 import { Receipt } from '../core/receipts';
-import { Customer, addReceipt, enqueue, local } from '../db/database';
+import { OutboxItem } from '../core/outbox';
+import { Customer, local, saveOperation } from '../db/database';
 import { pick, t } from '../i18n';
 import { useTheme } from './theme';
 
@@ -18,12 +19,24 @@ export function CollectionScreen({ onSaved }: { onSaved: () => void }) {
     void local.customers().then(setCustomers);
   }, []);
 
+  // Blocks a second tap while the first save is still running, so one tap can never create two operations.
+  const saving = useRef(false);
   async function save() {
+    if (saving.current) return;
+    saving.current = true;
+    try {
+      await saveOnce();
+    } finally {
+      saving.current = false;
+    }
+  }
+
+  async function saveOnce() {
     if (!customer) return Alert.alert(t('selectCustomer'));
     if (!MONEY.test(amount) || Number(amount) <= 0) return Alert.alert(t('amount'));
     const now = new Date();
     const opId = Crypto.randomUUID();
-    await enqueue({
+    const item: OutboxItem = {
       opId,
       type: 'COLLECTION',
       clientCreatedAt: now.toISOString(),
@@ -31,7 +44,7 @@ export function CollectionScreen({ onSaved }: { onSaved: () => void }) {
       error: null,
       attempts: 0,
       payload: { customerId: customer, amount, date: now.toISOString().slice(0, 10) },
-    });
+    };
     const who = customers.find((x) => x.id === customer);
     const receipt: Receipt = {
       opId,
@@ -43,7 +56,7 @@ export function CollectionScreen({ onSaved }: { onSaved: () => void }) {
       lines: [],
       total: Number(amount).toFixed(2),
     };
-    await addReceipt(receipt);
+    await saveOperation(item, receipt);
     Alert.alert(t('savedOffline'));
     setAmount('');
     setCustomer(null);

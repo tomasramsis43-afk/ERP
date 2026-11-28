@@ -1,9 +1,10 @@
 import * as Crypto from 'expo-crypto';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { CartLine, Product, applySale, cartTotal } from '../core/cart';
 import { Receipt } from '../core/receipts';
-import { Customer, addReceipt, enqueue, local } from '../db/database';
+import { OutboxItem } from '../core/outbox';
+import { Customer, local, saveOperation } from '../db/database';
 import { pick, t } from '../i18n';
 import { useTheme } from './theme';
 
@@ -33,7 +34,19 @@ export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const total = useMemo(() => (cart.length ? cartTotal(byId, cart, customer, prices, 'RETAIL') : '0.00'), [cart, byId, customer, prices]);
 
+  // Blocks a second tap while the first save is still running, so one tap can never create two operations.
+  const saving = useRef(false);
   async function save() {
+    if (saving.current) return;
+    saving.current = true;
+    try {
+      await saveOnce();
+    } finally {
+      saving.current = false;
+    }
+  }
+
+  async function saveOnce() {
     if (cart.length === 0) return;
     if (refund === 'CREDIT' && !customer) return Alert.alert(t('selectCustomer'));
     if (cart.some((l) => !QTY.test(l.quantity) || Number(l.quantity) <= 0)) return Alert.alert(t('quantity'));
@@ -41,7 +54,7 @@ export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
     const now = new Date();
     const opId = Crypto.randomUUID();
     const date = now.toISOString().slice(0, 10);
-    await enqueue({
+    const item: OutboxItem = {
       opId,
       type: 'RETURN',
       clientCreatedAt: now.toISOString(),
@@ -55,7 +68,7 @@ export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
         ...(customer ? { customerId: customer } : {}),
         lines: cart.map((l) => ({ productId: l.productId, quantity: l.quantity })),
       },
-    });
+    };
     const who = customers.find((x) => x.id === customer);
     const receipt: Receipt = {
       opId,
@@ -71,9 +84,8 @@ export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
       total,
       cashRefund: refund === 'CASH',
     };
-    await addReceipt(receipt);
-    // Only good goods go back on the van (the server does the same); damaged goods are not restocked.
-    if (condition === 'GOOD') await local.setVanStock(applySale(stock, byId, cart, 1));
+    // Only good goods go back on the van (the server does the same); damaged goods are not restocked. Saved atomically.
+    await saveOperation(item, receipt, condition === 'GOOD' ? applySale(stock, byId, cart, 1) : undefined);
     Alert.alert(t('savedOffline'));
     setCart([]);
     onSaved();

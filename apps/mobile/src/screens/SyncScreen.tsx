@@ -2,12 +2,11 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { syncApi } from '../api/client';
 import { OutboxItem } from '../core/outbox';
-import { local, store } from '../db/database';
+import { getDeviceId, local, store } from '../db/database';
 import { t } from '../i18n';
 import { SyncReport, synchronize } from '../sync/syncEngine';
 import { useTheme } from './theme';
 
-export const DEVICE_ID = 'device-local';
 
 export function SyncScreen({ onSynced }: { onSynced: () => void }) {
   const { s, c } = useTheme();
@@ -27,7 +26,7 @@ export function SyncScreen({ onSynced }: { onSynced: () => void }) {
   async function run() {
     setBusy(true);
     try {
-      setReport(await synchronize(syncApi, store, DEVICE_ID));
+      setReport(await synchronize(syncApi, store, await getDeviceId()));
       onSynced();
     } finally {
       setBusy(false);
