@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PageParams } from '../../common/utils/pagination';
+import { AuthUser } from '../../common/decorators/auth.decorators';
+import { assertOwnRep, repScope } from '../../common/rep-scope';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { FinancialAccountKindDto } from '../treasury/dto/treasury.dto';
@@ -70,10 +72,12 @@ export class RepresentativesService {
     return rep;
   }
 
-  async list(p: PageParams, q?: string) {
+  async list(p: PageParams, q: string | undefined, user: AuthUser) {
+    const scope = await repScope(this.prisma, user);
+    const base: Prisma.RepresentativeWhereInput = scope.restricted ? { id: scope.repId } : {};
     const where: Prisma.RepresentativeWhereInput = q
-      ? { OR: [{ code: { contains: q, mode: 'insensitive' } }, { nameAr: { contains: q, mode: 'insensitive' } }, { nameEn: { contains: q, mode: 'insensitive' } }] }
-      : {};
+      ? { ...base, OR: [{ code: { contains: q, mode: 'insensitive' } }, { nameAr: { contains: q, mode: 'insensitive' } }, { nameEn: { contains: q, mode: 'insensitive' } }] }
+      : base;
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.representative.findMany({
         where,
@@ -90,7 +94,8 @@ export class RepresentativesService {
     return { items, total, page: p.page, pageSize: p.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user?: AuthUser) {
+    if (user) assertOwnRep(await repScope(this.prisma, user), id);
     const rep = await this.prisma.representative.findUnique({
       where: { id },
       include: { route: true, vehicle: { include: { warehouse: true } }, financialAccount: true },

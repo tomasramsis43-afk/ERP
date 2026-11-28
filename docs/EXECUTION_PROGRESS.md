@@ -18,7 +18,7 @@ Mobile 60 PASS, API guard specs 8 PASS, accounting-engine 6 PASS, web typecheck 
 
 ## Next steps (in order)
 1. Run CI on the branch (PostgreSQL). Fix anything it reports.
-2. Decide and fix finding A (purchase-cancel costing) with a database test.
+2. DONE: finding A (purchase-cancel costing) fixed with database test; incremental catalogue sync done; representative data isolation done (PR #28).
 3. Test the mobile app on a real Android device: login, offline sale, kill app mid-save, sync, camera, PDF, RTL.
 4. Incremental sync (server `since` cursor + mobile) and CONFLICT handling.
 5. Audit accounting posting, treasury, payroll, VAT and the new branch scoping.

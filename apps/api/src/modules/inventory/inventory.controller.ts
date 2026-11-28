@@ -60,12 +60,13 @@ export class InventoryController {
     @Query('warehouseId') warehouseId?: string,
     @Query('productId') productId?: string,
     @Query('lowOnly') lowOnly?: string,
+    @CurrentUser() user?: AuthUser,
   ) {
-    return this.inventory.balances(parsePage(page, pageSize, 50, 200), {
-      warehouseId,
-      productId,
-      lowOnly: lowOnly === 'true',
-    });
+    return this.inventory.balances(
+      parsePage(page, pageSize, 50, 200),
+      { warehouseId, productId, lowOnly: lowOnly === 'true' },
+      user!,
+    );
   }
 
   /** Batch/lot layers and expiry watch list. */

@@ -20,14 +20,15 @@ export class PartiesController {
     @Query('q') q?: string,
     @Query('regionId') regionId?: string,
     @Query('representativeId') representativeId?: string,
+    @CurrentUser() user?: AuthUser,
   ) {
-    return this.parties.listCustomers(parsePage(page, pageSize), { q: q?.trim() || undefined, regionId, representativeId });
+    return this.parties.listCustomers(parsePage(page, pageSize), { q: q?.trim() || undefined, regionId, representativeId }, user!);
   }
 
   @Get('customers/:id')
   @RequirePermissions('customers:view')
-  customer(@Param('id', ParseUUIDPipe) id: string) {
-    return this.parties.getCustomer(id);
+  customer(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.parties.getCustomer(id, user);
   }
 
   @Post('customers')

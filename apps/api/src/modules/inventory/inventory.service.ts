@@ -1,7 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Decimal, dec, roundMoney } from '@erp/accounting-engine';
 import { PageParams } from '../../common/utils/pagination';
+import { AuthUser } from '../../common/decorators/auth.decorators';
+import { repScope } from '../../common/rep-scope';
 import { PrismaService } from '../../database/prisma.service';
 import { SystemAccountsService } from '../accounting/accounts/system-accounts.service';
 import { JournalPostingService } from '../accounting/journal/journal-posting.service';
@@ -280,7 +282,14 @@ export class InventoryService {
     return result;
   }
 
-  async balances(p: PageParams, f: { warehouseId?: string; productId?: string; lowOnly?: boolean }) {
+  async balances(p: PageParams, f: { warehouseId?: string; productId?: string; lowOnly?: boolean }, user: AuthUser) {
+    const scope = await repScope(this.prisma, user);
+    if (scope.restricted) {
+      if (!scope.warehouseId || (f.warehouseId && f.warehouseId !== scope.warehouseId)) {
+        throw new ForbiddenException('A representative can only view their own vehicle stock');
+      }
+      f = { ...f, warehouseId: scope.warehouseId };
+    }
     const where: Prisma.StockBalanceWhereInput = {
       ...(f.warehouseId ? { warehouseId: f.warehouseId } : {}),
       ...(f.productId ? { productId: f.productId } : {}),

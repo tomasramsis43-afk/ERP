@@ -1,6 +1,8 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PageParams } from '../../common/utils/pagination';
+import { AuthUser } from '../../common/decorators/auth.decorators';
+import { repScope } from '../../common/rep-scope';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { CreateCustomerDto, CreateSupplierDto, UpdateCustomerDto, UpdateSupplierDto } from './dto/party.dto';
@@ -16,8 +18,10 @@ export class PartiesService {
 
   // ---- customers ----------------------------------------------------
 
-  async listCustomers(p: PageParams, f: { q?: string; regionId?: string; representativeId?: string }) {
+  async listCustomers(p: PageParams, f: { q?: string; regionId?: string; representativeId?: string }, user: AuthUser) {
+    const scope = await repScope(this.prisma, user);
     const where: Prisma.CustomerWhereInput = {
+      ...(scope.restricted ? { AND: [{ OR: [{ representativeId: scope.repId }, ...(scope.routeId ? [{ routeId: scope.routeId }] : [])] }] } : {}),
       ...(f.regionId ? { regionId: f.regionId } : {}),
       ...(f.representativeId ? { representativeId: f.representativeId } : {}),
       ...(f.q
@@ -40,9 +44,13 @@ export class PartiesService {
     return { items, total, page: p.page, pageSize: p.pageSize };
   }
 
-  async getCustomer(id: string) {
+  async getCustomer(id: string, user: AuthUser) {
     const c = await this.prisma.customer.findUnique({ where: { id } });
     if (!c) throw new NotFoundException('Customer not found');
+    const scope = await repScope(this.prisma, user);
+    if (scope.restricted && c.representativeId !== scope.repId && !(scope.routeId && c.routeId === scope.routeId)) {
+      throw new NotFoundException('Customer not found');
+    }
     return { ...c, balance: (await this.ledger.balance('CUSTOMER', id)).toFixed(2) };
   }
 

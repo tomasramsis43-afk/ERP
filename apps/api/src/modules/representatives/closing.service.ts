@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { Decimal, dec, roundMoney, roundQty } from '@erp/accounting-engine';
 import { AuthUser } from '../../common/decorators/auth.decorators';
 import { PageParams } from '../../common/utils/pagination';
+import { assertOwnRep, repScope } from '../../common/rep-scope';
 import { PrismaService } from '../../database/prisma.service';
 import { SystemAccountsService } from '../accounting/accounts/system-accounts.service';
 import { toDate } from '../accounting/dto/journal.dto';
@@ -248,7 +249,8 @@ export class ClosingService {
     return closing;
   }
 
-  async list(repId: string, p: PageParams) {
+  async list(repId: string, p: PageParams, user: AuthUser) {
+    assertOwnRep(await repScope(this.prisma, user), repId);
     const [items, total] = await this.prisma.$transaction([
       this.prisma.repClosing.findMany({ where: { representativeId: repId }, orderBy: { closingDate: 'desc' }, skip: p.skip, take: p.pageSize }),
       this.prisma.repClosing.count({ where: { representativeId: repId } }),
@@ -256,9 +258,10 @@ export class ClosingService {
     return { items, total, page: p.page, pageSize: p.pageSize };
   }
 
-  async get(id: string) {
+  async get(id: string, user: AuthUser) {
     const c = await this.prisma.repClosing.findUnique({ where: { id }, include: { lines: true } });
     if (!c) throw new NotFoundException('Closing not found');
+    assertOwnRep(await repScope(this.prisma, user), c.representativeId);
     return c;
   }
 

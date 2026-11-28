@@ -16,6 +16,7 @@ d('negative-stock approval (end to end, requires seeded PostgreSQL)', () => {
   let repToken: string;
   let productId: string;
   let warehouseId: string;
+  let vanWarehouseId: string;
   const admin = () => ({ Authorization: `Bearer ${adminToken}` });
   const rep = () => ({ Authorization: `Bearer ${repToken}` });
   const sale = (idempotencyKey: string, reason?: string) => ({
@@ -42,11 +43,13 @@ d('negative-stock approval (end to end, requires seeded PostgreSQL)', () => {
     const s = uid();
     const email = `rep-${s}@example.com`;
     const password = 'Test12345!';
-    await http
-      .post('/users')
-      .set(admin())
-      .send({ email, fullName: 'Test Representative', password, roleCodes: ['REPRESENTATIVE'] })
-      .expect(201);
+    const repUserId = (
+      await http.post('/users').set(admin()).send({ email, fullName: 'Test Representative', password, roleCodes: ['REPRESENTATIVE'] }).expect(201)
+    ).body.id;
+    // A representative sells only from their own van, so the permission check runs against the van's (empty) stock.
+    const vehicle = (await http.post('/vehicles').set(admin()).send({ plateNumber: `NS-${s}`, model: 'Van' }).expect(201)).body;
+    vanWarehouseId = vehicle.warehouseId;
+    await http.post('/representatives').set(admin()).send({ code: `N${s}`.slice(0, 12), nameAr: 'مندوب', userId: repUserId, vehicleId: vehicle.id }).expect(201);
     repToken = await login(email, password);
 
     const unitId = (await http.post('/units').set(admin()).send({ code: `U-${s}`, nameAr: 'قطعة', nameEn: 'Piece' }).expect(201)).body.id;
@@ -65,7 +68,11 @@ d('negative-stock approval (end to end, requires seeded PostgreSQL)', () => {
   });
 
   it('blocks unauthorised oversells, requires a reason, then records an approved negative balance', async () => {
-    const unauthorised = await http.post('/sales/invoices').set(rep()).send(sale(`ns-rep-${uid()}`, 'No permission')).expect(400);
+    const unauthorised = await http
+      .post('/sales/invoices')
+      .set(rep())
+      .send({ ...sale(`ns-rep-${uid()}`, 'No permission'), warehouseId: vanWarehouseId })
+      .expect(400);
     expect(JSON.stringify(unauthorised.body)).toMatch(/insufficient stock/i);
 
     const noReason = await http.post('/sales/invoices').set(admin()).send(sale(`ns-noreason-${uid()}`)).expect(400);
