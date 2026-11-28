@@ -1,4 +1,4 @@
-export type OpType = 'SALE' | 'RETURN' | 'COLLECTION';
+export type OpType = 'SALE' | 'RETURN' | 'COLLECTION' | 'EXPENSE' | 'VISIT' | 'CUSTOMER';
 export type LocalStatus = 'PENDING' | 'REJECTED';
 
 export interface OutboxItem {

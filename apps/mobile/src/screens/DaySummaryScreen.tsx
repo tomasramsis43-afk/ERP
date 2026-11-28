@@ -8,12 +8,13 @@ import { pruneOldReceipts, receiptsForDate, store } from '../db/database';
 import { getLang, t } from '../i18n';
 import { useTheme } from './theme';
 
-const kindKey: Record<ReceiptKind, 'receiptCashSale' | 'receiptCreditSale' | 'receiptReturnGood' | 'receiptReturnDamaged' | 'receiptCollection'> = {
+const kindKey: Record<ReceiptKind, 'receiptCashSale' | 'receiptCreditSale' | 'receiptReturnGood' | 'receiptReturnDamaged' | 'receiptCollection' | 'receiptExpense'> = {
   CASH_SALE: 'receiptCashSale',
   CREDIT_SALE: 'receiptCreditSale',
   RETURN_GOOD: 'receiptReturnGood',
   RETURN_DAMAGED: 'receiptReturnDamaged',
   COLLECTION: 'receiptCollection',
+  EXPENSE: 'receiptExpense',
 };
 
 const labels = (): ReceiptLabels => ({
@@ -29,7 +30,7 @@ const dir = () => (getLang() === 'ar' ? 'rtl' : 'ltr') as 'rtl' | 'ltr';
 
 const summaryLabels = (): SummaryLabels => ({
   title: t('daySummary'), date: t('date'), operations: t('operations'), cashSales: t('cashSales'), creditSales: t('creditSales'),
-  collections: t('collections'), returnsGood: t('returnsGood'), returnsDamaged: t('returnsDamaged'), cashRefunds: t('cashRefunds'),
+  collections: t('collections'), returnsGood: t('returnsGood'), returnsDamaged: t('returnsDamaged'), cashRefunds: t('cashRefunds'), expenses: t('expenses'),
   expectedCash: t('expectedCash'), estimate: t('estimate'),
 });
 
