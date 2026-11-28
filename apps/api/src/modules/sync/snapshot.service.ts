@@ -31,11 +31,12 @@ export class SnapshotService {
         isActive: true,
         OR: [{ representativeId: profile.id }, ...(profile.routeId ? [{ routeId: profile.routeId }] : [])],
       },
-      select: { id: true, code: true, nameAr: true, nameEn: true, phone: true, address: true, creditLimit: true, routeId: true },
-      orderBy: { code: 'asc' },
+      select: { id: true, code: true, nameAr: true, nameEn: true, phone: true, address: true, creditLimit: true, routeId: true, routeSequence: true },
+      orderBy: [{ routeSequence: { sort: 'asc', nulls: 'last' } }, { code: 'asc' }],
     });
     const ids = customers.map((c) => c.id);
-    const [balances, prices, products] = await Promise.all([
+    const todayDate = new Date(`${asOf.toISOString().slice(0, 10)}T00:00:00.000Z`);
+    const [balances, prices, products, visitsToday] = await Promise.all([
       this.ledger.balances('CUSTOMER', ids),
       ids.length ? this.prisma.customerPrice.findMany({ where: { customerId: { in: ids } }, select: { customerId: true, productId: true, price: true } }) : [],
       this.prisma.product.findMany({
@@ -47,6 +48,7 @@ export class SnapshotService {
         },
         orderBy: { code: 'asc' },
       }),
+      this.prisma.routeVisit.findMany({ where: { representativeId: profile.id, visitDate: todayDate }, select: { customerId: true, outcome: true } }),
     ]);
     return {
       serverTime: asOf.toISOString(),
@@ -64,6 +66,8 @@ export class SnapshotService {
       customers: customers.map((c) => ({ ...c, balance: balances.get(c.id) ?? '0.00' })),
       customerPrices: prices,
       products,
+      /** Today's logged visits, so the phone can mark the customers already visited. */
+      visitsToday,
       vanStock: profile.vehicleStock.map((s) => ({ productId: s.productId, quantity: s.quantity.toString() })),
     };
   }

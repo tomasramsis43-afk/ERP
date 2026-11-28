@@ -201,6 +201,73 @@ d('offline synchronisation (requires seeded PostgreSQL)', () => {
     await http.post('/sync/push').send({ deviceId: 'd', operations: [sale()] }).expect(401);
   });
 
+  it('field operations: an expense is paid from the representative\'s own custody, once', async () => {
+    const before = await custody();
+    const op = { opId: randomUUID(), type: 'EXPENSE', clientCreatedAt: at(1), payload: { category: 'FUEL', date: today, amount: '5.00', description: 'diesel' } };
+    const first = (await push([op]).expect(200)).body.results[0];
+    expect(first.status).toBe('APPLIED');
+    expect(await custody()).toBeCloseTo(before - 5, 2);
+    const replay = (await push([op]).expect(200)).body.results[0];
+    expect(replay.status).toBe('DUPLICATE');
+    expect(await custody()).toBeCloseTo(before - 5, 2);
+    // A tampered payload (another account, unknown field, bad category) is refused, never applied.
+    const bad = (await push([{ opId: randomUUID(), type: 'EXPENSE', clientCreatedAt: at(2), payload: { category: 'FUEL', date: today, amount: '5.00', financialAccountId: randomUUID() } }]).expect(200)).body.results[0];
+    expect(bad.status).toBe('REJECTED');
+    const badCategory = (await push([{ opId: randomUUID(), type: 'EXPENSE', clientCreatedAt: at(3), payload: { category: 'WINE', date: today, amount: '5.00' } }]).expect(200)).body.results[0];
+    expect(badCategory.status).toBe('REJECTED');
+    expect(await custody()).toBeCloseTo(before - 5, 2);
+  });
+
+  it('field operations: a visit is recorded, re-logging the same day corrects it, and the pull lists it', async () => {
+    const first = (await push([{ opId: randomUUID(), type: 'VISIT', clientCreatedAt: at(1), payload: { customerId, outcome: 'NO_ORDER', note: 'busy' } }]).expect(200)).body.results[0];
+    expect(first.status).toBe('APPLIED');
+    const second = (await push([{ opId: randomUUID(), type: 'VISIT', clientCreatedAt: at(2), payload: { customerId, outcome: 'SHOP_CLOSED' } }]).expect(200)).body.results[0];
+    expect(second.status).toBe('APPLIED');
+    expect(second.resultId).toBe(first.resultId); // same representative, customer and day: one visit row
+    const pulled = (await http.get('/sync/pull').set(bearer(token)).expect(200)).body;
+    const visit = pulled.visitsToday.filter((v: { customerId: string }) => v.customerId === customerId);
+    expect(visit).toHaveLength(1);
+    expect(visit[0].outcome).toBe('SHOP_CLOSED');
+    const bad = (await push([{ opId: randomUUID(), type: 'VISIT', clientCreatedAt: at(3), payload: { customerId, outcome: 'MAYBE' } }]).expect(200)).body.results[0];
+    expect(bad.status).toBe('REJECTED');
+  });
+
+  it('field operations: a new customer is created for this representative and route, once', async () => {
+    const op = { opId: randomUUID(), type: 'CUSTOMER', clientCreatedAt: at(1), payload: { nameAr: 'عميل جديد', nameEn: 'New shop', phone: '01000000000', address: 'Main street' } };
+    const first = (await push([op]).expect(200)).body.results[0];
+    expect(first.status).toBe('APPLIED');
+    const replay = (await push([op]).expect(200)).body.results[0];
+    expect(replay.status).toBe('DUPLICATE');
+    expect(replay.resultId).toBe(first.resultId);
+    const pulled = (await http.get('/sync/pull').set(bearer(token)).expect(200)).body;
+    const created = pulled.customers.find((c: { id: string }) => c.id === first.resultId);
+    expect(created.nameAr).toBe('عميل جديد');
+    expect(n(created.creditLimit)).toBe(0); // a phone cannot grant itself credit
+    const bad = (await push([{ opId: randomUUID(), type: 'CUSTOMER', clientCreatedAt: at(2), payload: { nameAr: 'x', creditLimit: '999999' } }]).expect(200)).body.results[0];
+    expect(bad.status).toBe('REJECTED');
+  });
+
+  it('statement and report are scoped to the signed-in representative', async () => {
+    const st = (await http.get(`/sync/customers/${customerId}/statement`).set(bearer(token)).expect(200)).body;
+    expect(st.customer.id).toBe(customerId);
+    expect(Array.isArray(st.rows)).toBe(true);
+    expect(st).toHaveProperty('closingBalance');
+    // The second representative has no route and no assignment to this customer.
+    await http.get(`/sync/customers/${customerId}/statement`).set(bearer(otherToken)).expect(403);
+    await http.get('/sync/customers/not-a-uuid/statement').set(bearer(token)).expect(400);
+
+    const r = (await http.get('/sync/me/report').set(bearer(token)).expect(200)).body;
+    expect(r.sales.count).toBeGreaterThan(0);
+    expect(n(r.sales.total)).toBeGreaterThan(0);
+    expect(n(r.expenses.total)).toBeGreaterThanOrEqual(5);
+    expect(r.visits).toHaveProperty('SHOP_CLOSED');
+    await http.get('/sync/me/report?from=2026-12-31&to=2026-01-01').set(bearer(token)).expect(403);
+    await http.get('/sync/me/report?from=2020-01-01&to=2026-01-01').set(bearer(token)).expect(403);
+    await http.get('/sync/me/report?from=yesterday').set(bearer(token)).expect(400);
+    // A user without a representative profile has nothing to report.
+    await http.get('/sync/me/report').set(bearer(admin)).expect(404);
+  });
+
   it('the books stay balanced after all of it', async () => {
     expect((await http.get('/accounting/reports/trial-balance').set(bearer(admin)).expect(200)).body.balanced).toBe(true);
     expect(await tb('41')).toBeLessThan(0); // sales are credit-natural

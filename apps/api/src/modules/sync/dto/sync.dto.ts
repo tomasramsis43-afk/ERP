@@ -17,6 +17,9 @@ export enum SyncOpType {
   SALE = 'SALE',
   RETURN = 'RETURN',
   COLLECTION = 'COLLECTION',
+  EXPENSE = 'EXPENSE',
+  VISIT = 'VISIT',
+  CUSTOMER = 'CUSTOMER',
 }
 
 export class SyncOperationDto {

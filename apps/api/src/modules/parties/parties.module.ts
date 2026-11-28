@@ -6,6 +6,6 @@ import { PartyLedgerService } from './party-ledger.service';
 @Module({
   controllers: [PartiesController],
   providers: [PartiesService, PartyLedgerService],
-  exports: [PartyLedgerService],
+  exports: [PartyLedgerService, PartiesService],
 })
 export class PartiesModule {}

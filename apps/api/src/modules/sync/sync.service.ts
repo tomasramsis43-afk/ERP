@@ -2,8 +2,11 @@ import { ForbiddenException, HttpException, Injectable, NotFoundException } from
 import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/auth.decorators';
 import { PrismaService } from '../../database/prisma.service';
+import { PartiesService } from '../parties/parties.service';
+import { RoutesService } from '../routes/routes.service';
 import { SalesService } from '../sales/sales.service';
 import { VouchersService } from '../treasury/vouchers.service';
+import { VehiclesService } from '../vehicles/vehicles.service';
 import { PushDto, SyncOperationDto } from './dto/sync.dto';
 import { RepContext, SyncHandlers } from './sync-handlers';
 
@@ -20,8 +23,11 @@ export class SyncService {
     private readonly prisma: PrismaService,
     sales: SalesService,
     vouchers: VouchersService,
+    vehicles: VehiclesService,
+    routes: RoutesService,
+    parties: PartiesService,
   ) {
-    this.handlers = new SyncHandlers(sales, vouchers);
+    this.handlers = new SyncHandlers(sales, vouchers, vehicles, routes, parties, prisma);
   }
 
   async repContext(userId: string): Promise<RepContext> {
@@ -29,7 +35,7 @@ export class SyncService {
     if (!rep) throw new NotFoundException('No representative profile is linked to this user');
     if (!rep.isActive) throw new ForbiddenException('Representative is inactive');
     if (!rep.vehicle) throw new ForbiddenException('The representative has no vehicle assigned');
-    return { repId: rep.id, vanWarehouseId: rep.vehicle.warehouseId, custodyAccountId: rep.financialAccountId };
+    return { repId: rep.id, repCode: rep.code, routeId: rep.routeId, vehicleId: rep.vehicle.id, vanWarehouseId: rep.vehicle.warehouseId, custodyAccountId: rep.financialAccountId };
   }
 
   /**
