@@ -2,7 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { CustomerLike, customerStatus, displayMoney } from '../core/fieldDay';
-import { Customer, RepProfile, VisitToday, local } from '../db/database';
+import { pendingNewCustomers, visitedTodayIds } from '../core/fieldOps';
+import { Customer, RepProfile, VisitToday, local, store } from '../db/database';
 import { pick, t } from '../i18n';
 import { useTheme } from './theme';
 
@@ -16,30 +17,44 @@ const FILTERS: { key: Filter; label: () => string }[] = [
 ];
 
 export function CustomersScreen({
-  onSell, version,
+  onSell, onOpen, version,
 }: {
   onSell: (customerId: string) => void;
+  onOpen: (customerId: string) => void;
   version: number;
 }) {
   const { c, font } = useTheme();
   const st = useMemo(() => makeStyles(c, font), [c, font]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [visits, setVisits] = useState<VisitToday[]>([]);
+  const [outbox, setOutbox] = useState<Awaited<ReturnType<typeof store.loadOutbox>>>([]);
   const [rep, setRep] = useState<RepProfile | null>(null);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    void Promise.all([local.customers(), local.visitsToday(), local.rep()]).then(([cs, vs, r]) => {
-      setCustomers(cs);
+    void Promise.all([local.customers(), local.visitsToday(), local.rep(), store.loadOutbox()]).then(([cs, vs, r, ob]) => {
+      const pending = pendingNewCustomers(ob).map((p) => ({
+        id: p.opId,
+        code: p.code,
+        nameAr: p.nameAr,
+        nameEn: p.nameEn,
+        phone: p.phone,
+        address: p.address,
+        creditLimit: '0.00',
+        balance: '0.00',
+        routeSequence: null,
+      }));
+      setCustomers([...cs, ...pending]);
       setVisits(vs);
+      setOutbox(ob);
       setRep(r);
       setLoaded(true);
     });
   }, [version]);
 
-  const visited = useMemo(() => new Set(visits.map((v) => v.customerId)), [visits]);
+  const visited = useMemo(() => visitedTodayIds(visits, outbox), [visits, outbox]);
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -123,7 +138,7 @@ export function CustomersScreen({
           return (
             <Pressable
               style={({ pressed }) => [st.card, pressed ? st.cardPressed : null]}
-              onPress={() => onSell(item.id)}
+              onPress={() => onOpen(item.id)}
               accessibilityRole="button"
               accessibilityLabel={pick(item.nameAr, item.nameEn)}
             >

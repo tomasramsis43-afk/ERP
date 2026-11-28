@@ -9,10 +9,11 @@ import { useTheme } from './theme';
 export type MoreTab = 'return' | 'van' | 'summary' | 'close' | 'sync';
 
 export function MoreScreen({
-  version, onOpen, onToggleLanguage, onLogout,
+  version, onOpen, onOpenReport, onToggleLanguage, onLogout,
 }: {
   version: number;
   onOpen: (tab: MoreTab) => void;
+  onOpenReport: () => void;
   onToggleLanguage: () => void;
   onLogout: () => void;
 }) {
@@ -64,6 +65,9 @@ export function MoreScreen({
       {row('bar-chart-outline', t('daySummary'), () => onOpen('summary'))}
       {row('lock-closed-outline', t('closeDay'), () => onOpen('close'))}
       {row('sync-outline', t('outbox'), () => onOpen('sync'))}
+
+      <Text style={st.section}>{t('reportTitle')}</Text>
+      {row('bar-chart-outline', t('reportTitle'), onOpenReport)}
 
       <Text style={st.section}>{t('accountSection')}</Text>
       {row('language-outline', t('language'), onToggleLanguage)}
