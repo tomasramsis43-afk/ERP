@@ -1,7 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { CartLine, Product, applySale, cartTotal } from '../core/cart';
+import { CartLine, Product, applySale, estimateCartTotal, isPositiveQuantity } from '../core/cart';
 import { OutboxItem } from '../core/outbox';
 import { Receipt } from '../core/receipts';
 import { Customer, local, saveOperation } from '../db/database';
@@ -9,7 +9,6 @@ import { pick, t } from '../i18n';
 import { ProductPicker } from './ProductPicker';
 import { useTheme } from './theme';
 
-const QTY = /^\d{1,10}(\.\d{1,4})?$/;
 
 export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
   const { s, c } = useTheme();
@@ -34,12 +33,12 @@ export function ReturnScreen({ onSaved }: { onSaved: () => void }) {
   }, []);
 
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
-  const total = useMemo(() => (cart.length ? cartTotal(byId, cart, customer, prices, 'RETAIL') : '0.00'), [cart, byId, customer, prices]);
+  const total = useMemo(() => (cart.length ? estimateCartTotal(byId, cart, customer, prices, 'RETAIL') : '0.00'), [cart, byId, customer, prices]);
 
   async function save() {
     if (saving.current || cart.length === 0) return;
     if (refund === 'CREDIT' && !customer) return Alert.alert(t('selectCustomer'));
-    if (cart.some((l) => !QTY.test(l.quantity) || Number(l.quantity) <= 0)) return Alert.alert(t('quantity'));
+    if (cart.some((l) => !isPositiveQuantity(l.quantity))) return Alert.alert(t('quantity'));
 
     const now = new Date();
     const opId = Crypto.randomUUID();
