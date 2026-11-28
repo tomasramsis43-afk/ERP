@@ -105,7 +105,7 @@ export class DashboardService {
     ]);
 
     const trend = new Map<string, Decimal>();
-    for (let i = 0; i < 14; i++) trend.set(addDays(trendFrom, i).toISOString().slice(0, 10), new Decimal(0));
+    for (let i = 0; i < days; i++) trend.set(addDays(trendFrom, i).toISOString().slice(0, 10), new Decimal(0));
     for (const r of trendRows) {
       const k = r.invoiceDate.toISOString().slice(0, 10);
       const sign = r.kind === 'RETURN' ? -1 : 1;
