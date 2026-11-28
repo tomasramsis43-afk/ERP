@@ -6,44 +6,14 @@ import { SummaryLabels, daySummaryHtml, receiptHtml } from '../core/receiptHtml'
 import { Receipt, ReceiptKind, ReceiptLabels, receiptText, summarizeDay } from '../core/receipts';
 import { pruneOldReceipts, receiptsForDate, store } from '../db/database';
 import { getLang, t } from '../i18n';
+import { dir, kindKey, labels, sharePdf } from './receiptShare';
 import { useTheme } from './theme';
-
-const kindKey: Record<ReceiptKind, 'receiptCashSale' | 'receiptCreditSale' | 'receiptReturnGood' | 'receiptReturnDamaged' | 'receiptCollection' | 'receiptExpense'> = {
-  CASH_SALE: 'receiptCashSale',
-  CREDIT_SALE: 'receiptCreditSale',
-  RETURN_GOOD: 'receiptReturnGood',
-  RETURN_DAMAGED: 'receiptReturnDamaged',
-  COLLECTION: 'receiptCollection',
-  EXPENSE: 'receiptExpense',
-};
-
-const labels = (): ReceiptLabels => ({
-  title: Object.fromEntries((Object.keys(kindKey) as ReceiptKind[]).map((k) => [k, t(kindKey[k])])) as Record<ReceiptKind, string>,
-  customer: t('customers'),
-  date: t('date'),
-  total: t('total'),
-  estimate: t('estimate'),
-  ref: t('ref'),
-});
-
-const dir = () => (getLang() === 'ar' ? 'rtl' : 'ltr') as 'rtl' | 'ltr';
 
 const summaryLabels = (): SummaryLabels => ({
   title: t('daySummary'), date: t('date'), operations: t('operations'), cashSales: t('cashSales'), creditSales: t('creditSales'),
   collections: t('collections'), returnsGood: t('returnsGood'), returnsDamaged: t('returnsDamaged'), cashRefunds: t('cashRefunds'), expenses: t('expenses'),
   expectedCash: t('expectedCash'), estimate: t('estimate'),
 });
-
-/** Renders HTML to a PDF file on the device (works offline) and opens the share sheet (print, save, send). */
-async function sharePdf(html: string): Promise<void> {
-  try {
-    const { uri } = await Print.printToFileAsync({ html });
-    if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
-    else Alert.alert(t('pdfFailed'));
-  } catch {
-    Alert.alert(t('pdfFailed'));
-  }
-}
 
 export function DaySummaryScreen({ version }: { version: number }) {
   const { s, c } = useTheme();
@@ -71,7 +41,7 @@ export function DaySummaryScreen({ version }: { version: number }) {
 
   return (
     <View style={s.screen}>
-      <Text style={s.title}>{t('daySummary')} · {today}</Text>
+      <Text style={s.sub}>{today}</Text>
       <View style={s.card}>
         {row(t('operations'), String(sum.count))}
         {row(t('cashSales'), sum.cashSales)}

@@ -27,7 +27,6 @@ export function VanStockScreen({ version }: { version: number }) {
 
   return (
     <View style={s.screen}>
-      <Text style={s.title}>{t('vanStock')}</Text>
       <TextInput style={s.input} placeholder={t('search')} placeholderTextColor={c.sub} value={q} onChangeText={setQ} />
       <FlatList
         data={rows}

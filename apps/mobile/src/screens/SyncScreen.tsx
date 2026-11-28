@@ -50,7 +50,6 @@ export function SyncScreen({ onSynced }: { onSynced: () => void }) {
   const rejected = items.filter((i) => i.status === 'REJECTED');
   return (
     <ScrollView style={s.screen}>
-      <Text style={s.title}>{t('outbox')}</Text>
       <Text style={s.sub}>{t('lastSync')}: {last ?? t('never')}</Text>
       <Pressable style={s.button} onPress={run} disabled={busy}>
         {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.buttonText}>{t('sync')}</Text>}

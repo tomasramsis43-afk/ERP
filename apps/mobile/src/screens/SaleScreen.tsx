@@ -2,24 +2,32 @@ import * as Crypto from 'expo-crypto';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { CartLine, CustomerPrice, Product, applySale, estimateCartTotal, isPositiveQuantity, lineTotal, stockShortages } from '../core/cart';
+import { creditCheck, customerStatus, isLowStock } from '../core/dashboard';
 import { format } from '../core/money';
 import { OutboxItem } from '../core/outbox';
 import { Receipt } from '../core/receipts';
+import { receiptHtml } from '../core/receiptHtml';
 import { Customer, local, saveOperation } from '../db/database';
 import { pick, t } from '../i18n';
+import { Btn, Empty, Icon, Pill, Stepper } from '../ui/kit';
 import { ProductPicker } from './ProductPicker';
+import { dir, labels, sharePdf } from './receiptShare';
 import { useTheme } from './theme';
 
-export function SaleScreen({ customerId, onSaved }: { customerId: string | null; onSaved: () => void }) {
+/** Sale in three steps: customer, items, confirm. The save is one atomic local write (operation + receipt + van stock). */
+export function SaleScreen({ customerId, onSaved, onClose }: { customerId: string | null; onSaved: () => void; onClose: () => void }) {
   const { s, c } = useTheme();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [prices, setPrices] = useState<CustomerPrice[]>([]);
   const [stock, setStock] = useState<Map<string, string>>(new Map());
   const [customer, setCustomer] = useState<string | null>(customerId);
+  const [step, setStep] = useState<0 | 1 | 2>(customerId ? 1 : 0);
+  const [q, setQ] = useState('');
   const [kind, setKind] = useState<'CASH' | 'CREDIT'>('CASH');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [picking, setPicking] = useState(false);
+  const [done, setDone] = useState<Receipt | null>(null);
   const saving = useRef(false); // blocks a second tap while the first save is still running
 
   useEffect(() => {
@@ -33,6 +41,12 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
 
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const total = useMemo(() => estimateCartTotal(byId, cart, customer, prices, 'RETAIL'), [cart, byId, customer, prices]);
+  const who = customers.find((x) => x.id === customer);
+  const shownCustomers = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return customers.filter((x) => !needle || `${x.code} ${x.nameAr} ${x.nameEn ?? ''}`.toLowerCase().includes(needle));
+  }, [customers, q]);
+  const credit = kind === 'CREDIT' && who ? creditCheck(who.balance, who.creditLimit, total) : 'NO_LIMIT';
 
   function add(p: Product, unitId?: string) {
     setCart((cur) => (cur.some((l) => l.productId === p.id) ? cur : [...cur, { productId: p.id, quantity: '1', ...(unitId ? { unitId } : {}) }]));
@@ -62,7 +76,6 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
         lines: cart.map((l) => ({ productId: l.productId, quantity: l.quantity, ...(l.unitId ? { unitId: l.unitId } : {}) })),
       },
     };
-    const who = customers.find((x) => x.id === customer);
     const receipt: Receipt = {
       opId,
       kind: kind === 'CASH' ? 'CASH_SALE' : 'CREDIT_SALE',
@@ -78,84 +91,160 @@ export function SaleScreen({ customerId, onSaved }: { customerId: string | null;
     };
     saving.current = true;
     try {
-      // One atomic write; the van stock is updated so the next offline sale sees what is really left.
       await saveOperation(item, receipt, applySale(stock, byId, cart));
     } catch {
       saving.current = false;
       return Alert.alert(t('saveFailed'));
     }
-    Alert.alert(t('savedOffline'));
-    setCart([]);
     saving.current = false;
+    setStock(applySale(stock, byId, cart));
+    setDone(receipt);
     onSaved();
   }
 
-  return (
-    <ScrollView style={s.screen}>
-      <Text style={s.title}>{t('newSale')}</Text>
+  function reset() {
+    setCart([]);
+    setDone(null);
+    setKind('CASH');
+    setStep(customer ? 1 : 0);
+  }
 
-      <Text style={s.sub}>{t('selectCustomer')}</Text>
-      <FlatList
-        horizontal
-        data={customers}
-        keyExtractor={(x) => x.id}
-        style={{ marginBottom: 10 }}
-        renderItem={({ item }) => (
-          <Pressable style={[s.ghost, { marginEnd: 8, backgroundColor: customer === item.id ? c.primary : 'transparent' }]} onPress={() => setCustomer(customer === item.id ? null : item.id)}>
-            <Text style={{ color: customer === item.id ? '#fff' : c.text }}>{pick(item.nameAr, item.nameEn)}</Text>
-          </Pressable>
-        )}
-      />
-
-      <View style={s.row}>
-        {(['CASH', 'CREDIT'] as const).map((k) => (
-          <Pressable key={k} style={[s.ghost, { flex: 1, marginHorizontal: 4, backgroundColor: kind === k ? c.primary : 'transparent' }]} onPress={() => setKind(k)}>
-            <Text style={{ color: kind === k ? '#fff' : c.text }}>{k === 'CASH' ? t('cash') : t('credit')}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {cart.map((l) => {
-        const p = byId.get(l.productId)!;
-        return (
-          <View key={l.productId} style={s.card}>
-            <Text style={s.text}>{pick(p.nameAr, p.nameEn)}</Text>
-            {l.unitId ? <Text style={s.sub}>{t('packUnit')} {p.units.find((u) => u.unitId === l.unitId)?.factor ?? '?'}</Text> : null}
-            <Text style={s.sub}>{t('van')}: {stock.get(p.id) ?? '0'}</Text>
-            <View style={s.row}>
-              <TextInput
-                style={[s.input, { flex: 1, marginBottom: 0 }]}
-                keyboardType="decimal-pad"
-                value={l.quantity}
-                onChangeText={(v) => setCart((cur) => cur.map((x) => (x.productId === l.productId ? { ...x, quantity: v } : x)))}
-              />
-              <Pressable style={[s.ghost, { marginStart: 8 }]} onPress={() => setCart((cur) => cur.filter((x) => x.productId !== l.productId))}>
-                <Text style={{ color: c.danger }}>✕</Text>
-              </Pressable>
-            </View>
+  if (done) {
+    return (
+      <ScrollView contentContainerStyle={{ padding: 16, alignItems: 'stretch', gap: 12 }}>
+        <View style={{ alignItems: 'center', paddingVertical: 20, gap: 10 }}>
+          <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: c.soft, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="check" size={36} color={c.primary} />
           </View>
-        );
-      })}
+          <Text style={{ color: c.text, fontSize: 20, fontWeight: '700' }}>{t('saleSaved')}</Text>
+          <Text style={{ color: c.sub, textAlign: 'center' }}>{t('savedOffline')}</Text>
+          <Text style={{ color: c.text, fontSize: 32, fontWeight: '700' }}>{done.total}</Text>
+        </View>
+        <Btn label={t('share')} icon="receipt" kind="outline" onPress={() => void sharePdf(receiptHtml(done, labels(), dir()))} />
+        <Btn label={t('newSale')} icon="plus" onPress={reset} />
+        <Btn label={t('backToToday')} kind="ink" onPress={onClose} />
+      </ScrollView>
+    );
+  }
 
-      <Pressable style={s.ghost} onPress={() => setPicking(!picking)}>
-        <Text style={{ color: c.primary }}>{t('addProduct')}</Text>
-      </Pressable>
-      <ProductPicker
-        visible={picking}
-        products={products}
-        stock={stock}
-        onPick={add}
-        onClose={() => setPicking(false)}
-      />
+  const stepper = (
+    <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 8 }}>
+      {([t('stepCustomer'), t('stepItems'), t('stepConfirm')] as const).map((label, i) => (
+        <Pressable key={label} onPress={() => (i < step || (i === 1 && step === 0 && customer) ? setStep(i as 0 | 1 | 2) : undefined)} accessibilityRole="button" accessibilityLabel={label} style={{ flex: 1 }}>
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: i <= step ? c.primary : c.border }} />
+          <Text style={{ color: i === step ? c.text : c.sub, fontSize: 12, fontWeight: i === step ? '700' : '400', marginTop: 4 }}>{i + 1}. {label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
 
-      <View style={[s.card, s.row]}>
-        <Text style={s.text}>{t('total')}</Text>
-        <Text style={s.text}>{total}</Text>
-      </View>
-      <Text style={s.sub}>{t('estimate')}</Text>
-      <Pressable style={s.button} onPress={save}>
-        <Text style={s.buttonText}>{t('save')}</Text>
-      </Pressable>
-    </ScrollView>
+  return (
+    <View style={{ flex: 1 }}>
+      {stepper}
+
+      {step === 0 ? (
+        <View style={{ flex: 1, paddingHorizontal: 16 }}>
+          <TextInput style={s.input} placeholder={t('search')} placeholderTextColor={c.sub} value={q} onChangeText={setQ} autoCorrect={false} accessibilityLabel={t('search')} />
+          <Pressable onPress={() => { setCustomer(null); setStep(1); }} accessibilityRole="button" style={{ minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: c.border, backgroundColor: c.card, marginBottom: 10 }}>
+            <Icon name="cash" size={22} color={c.primary} />
+            <Text style={{ color: c.text, fontSize: 16, fontWeight: '600' }}>{t('noCustomer')}</Text>
+          </Pressable>
+          <FlatList
+            data={shownCustomers}
+            keyExtractor={(x) => x.id}
+            initialNumToRender={15}
+            windowSize={7}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={<Empty icon="people" text={t('noData')} />}
+            renderItem={({ item }) => {
+              const st = customerStatus(item);
+              return (
+                <Pressable onPress={() => { setCustomer(item.id); setStep(1); }} accessibilityRole="button" style={{ backgroundColor: c.card, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: customer === item.id ? c.primary : c.border, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: c.text, fontSize: 16, fontWeight: '700' }}>{pick(item.nameAr, item.nameEn)}</Text>
+                    <Text style={{ color: c.sub, fontSize: 13 }}>{t('balance')} {item.balance} · {t('creditLimit')} {item.creditLimit}</Text>
+                  </View>
+                  {st !== 'CLEAR' ? <Pill tone={st === 'OVER_LIMIT' ? 'danger' : 'warn'} label={st === 'OVER_LIMIT' ? t('statusOver') : t('statusDue')} /> : null}
+                </Pressable>
+              );
+            }}
+          />
+        </View>
+      ) : null}
+
+      {step === 1 ? (
+        <View style={{ flex: 1 }}>
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }} keyboardShouldPersistTaps="handled">
+            <Text style={{ color: c.sub, fontSize: 13, marginBottom: 8 }}>{who ? pick(who.nameAr, who.nameEn) : t('noCustomer')} · {t('inCart')}: {cart.length} {t('itemsWord')}</Text>
+            {cart.length === 0 ? <Empty icon="box" text={t('cartEmpty')} /> : null}
+            {cart.map((l) => {
+              const p = byId.get(l.productId);
+              if (!p) return null;
+              const qty = stock.get(p.id);
+              return (
+                <View key={l.productId} style={{ backgroundColor: c.card, borderRadius: 16, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: c.border, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={{ color: c.text, fontSize: 15, fontWeight: '700' }}>{pick(p.nameAr, p.nameEn)}</Text>
+                    <Text style={{ color: c.sub, fontSize: 12 }}>{t('van')}: {qty ?? '0'}{l.unitId ? ` · ${t('packUnit')} ${p.units.find((u) => u.unitId === l.unitId)?.factor ?? '?'}` : ''}</Text>
+                    {isLowStock(qty) ? <Pill tone="warn" label={t('lowStock')} /> : null}
+                  </View>
+                  <Stepper
+                    value={l.quantity}
+                    onChange={(v) => setCart((cur) => cur.map((x) => (x.productId === l.productId ? { ...x, quantity: v } : x)))}
+                    onRemove={() => setCart((cur) => cur.filter((x) => x.productId !== l.productId))}
+                  />
+                </View>
+              );
+            })}
+            <Btn label={t('addMore')} icon="plus" kind="outline" onPress={() => setPicking(true)} />
+          </ScrollView>
+          <ProductPicker visible={picking} products={products} stock={stock} onPick={add} onClose={() => setPicking(false)} />
+        </View>
+      ) : null}
+
+      {step === 2 ? (
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+          <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: c.border, marginBottom: 12 }}>
+            <Text style={{ color: c.sub, fontSize: 13 }}>{t('stepCustomer')}</Text>
+            <Text style={{ color: c.text, fontSize: 17, fontWeight: '700' }}>{who ? pick(who.nameAr, who.nameEn) : t('noCustomer')}</Text>
+            {cart.map((l) => {
+              const p = byId.get(l.productId);
+              if (!p) return null;
+              return (
+                <View key={l.productId} style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+                  <Text style={{ color: c.text, flex: 1 }}>{pick(p.nameAr, p.nameEn)} × {l.quantity}</Text>
+                  <Text style={{ color: c.text, fontWeight: '600' }}>{format(lineTotal(p, l, customer, prices, 'RETAIL'), 2)}</Text>
+                </View>
+              );
+            })}
+          </View>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Btn flex={1} kind={kind === 'CASH' ? 'primary' : 'outline'} label={t('cash')} onPress={() => setKind('CASH')} />
+            <Btn flex={1} kind={kind === 'CREDIT' ? 'primary' : 'outline'} label={t('credit')} onPress={() => setKind('CREDIT')} />
+          </View>
+          {credit === 'NEAR' || credit === 'OVER' ? (
+            <View style={{ marginTop: 12, padding: 12, borderRadius: 14, backgroundColor: credit === 'OVER' ? `${c.danger}1F` : `${c.warn}1F` }}>
+              <Text style={{ color: credit === 'OVER' ? c.danger : c.warn, fontWeight: '700' }}>{credit === 'OVER' ? t('creditOver') : t('creditNear')}</Text>
+            </View>
+          ) : null}
+          {kind === 'CREDIT' && !customer ? <Text style={s.error}>{t('selectCustomer')}</Text> : null}
+          <Text style={{ color: c.sub, fontSize: 12, marginTop: 12 }}>{t('estimate')}</Text>
+        </ScrollView>
+      ) : null}
+
+      {step > 0 ? (
+        <View style={{ backgroundColor: c.card, borderTopWidth: 1, borderColor: c.border, padding: 16, gap: 10, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <Text style={{ color: c.sub }}>{t('total')}</Text>
+            <Text style={{ color: c.text, fontSize: 24, fontWeight: '700' }}>{total}</Text>
+          </View>
+          {step === 1 ? (
+            <Btn label={t('next')} onPress={() => setStep(2)} disabled={cart.length === 0} />
+          ) : (
+            <Btn label={kind === 'CASH' ? t('confirmCash') : t('confirmCredit')} onPress={() => void save()} disabled={cart.length === 0} />
+          )}
+        </View>
+      ) : null}
+    </View>
   );
 }
