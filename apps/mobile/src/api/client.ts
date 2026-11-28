@@ -9,6 +9,8 @@ const SERVER = 'erp.server';
 const ACCESS = 'erp.access';
 const REFRESH = 'erp.refresh';
 
+const TIMEOUT_MS = 20_000;
+
 export class ApiError extends Error {
   constructor(readonly status: number, message: string) {
     super(message);
@@ -30,13 +32,29 @@ async function raw(path: string, init: RequestInit & { token?: string }): Promis
   const BASE = await getServerUrl();
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(init.headers as Record<string, string>) };
   if (init.token) headers.Authorization = `Bearer ${init.token}`;
-  return fetch(`${BASE}${path}`, { ...init, headers });
+  // A request that never answers (dead mobile data, a cold-starting server) must not freeze the screen.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    return await fetch(`${BASE}${path}`, { ...init, headers, signal: controller.signal });
+  } catch (e) {
+    const timedOut = e instanceof Error && e.name === 'AbortError';
+    throw new ApiError(0, timedOut ? 'Request timed out' : 'Network request failed');
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function parse<T>(res: Response): Promise<T> {
   const text = await res.text();
-  const body = text ? JSON.parse(text) : null;
-  if (!res.ok) throw new ApiError(res.status, Array.isArray(body?.message) ? body.message.join('; ') : body?.message ?? res.statusText);
+  let body: { message?: string | string[] } | null = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    // An HTML error page from a proxy or a cold-starting host is not JSON; report the HTTP status instead.
+    if (res.ok) throw new ApiError(res.status, 'Invalid response from server');
+  }
+  if (!res.ok) throw new ApiError(res.status, Array.isArray(body?.message) ? body.message.join('; ') : body?.message ?? (res.statusText || `HTTP ${res.status}`));
   return body as T;
 }
 
@@ -54,10 +72,25 @@ export async function logout(): Promise<void> {
 export const hasSession = async (): Promise<boolean> => Boolean(await SecureStore.getItemAsync(REFRESH));
 
 /** Refresh tokens rotate: the new pair replaces the old one, and a failed refresh means logging in again. */
-async function refresh(): Promise<boolean> {
+let refreshing: Promise<boolean> | null = null;
+
+/** Several requests can get 401 together; only one refresh may run, because the old refresh token dies on first use. */
+function refresh(): Promise<boolean> {
+  refreshing ??= doRefresh().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+async function doRefresh(): Promise<boolean> {
   const refreshToken = await SecureStore.getItemAsync(REFRESH);
   if (!refreshToken) return false;
-  const res = await raw('/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) });
+  let res: Response;
+  try {
+    res = await raw('/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) });
+  } catch {
+    return false; // offline: keep the session and the outbox, try again later
+  }
   if (!res.ok) return false;
   const t = (await res.json()) as { accessToken: string; refreshToken: string };
   await SecureStore.setItemAsync(ACCESS, t.accessToken);
