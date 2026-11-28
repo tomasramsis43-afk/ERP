@@ -27,6 +27,7 @@ import { PhotoCaptureScreen } from './src/screens/PhotoCaptureScreen';
 import { PinLockScreen } from './src/screens/PinLockScreen';
 import { PinSetupScreen } from './src/screens/PinSetupScreen';
 import { NewCustomerScreen } from './src/screens/NewCustomerScreen';
+import { NotificationCenterScreen } from './src/screens/NotificationCenterScreen';
 import { RepReportScreen } from './src/screens/RepReportScreen';
 import { ReturnScreen } from './src/screens/ReturnScreen';
 import { SaleScreen } from './src/screens/SaleScreen';
@@ -38,7 +39,7 @@ import { VisitScreen } from './src/screens/VisitScreen';
 import { MoreScreen, MoreTab } from './src/screens/MoreScreen';
 import { useTheme } from './src/screens/theme';
 
-type Tab = 'today' | 'customers' | 'sale' | 'return' | 'collection' | 'van' | 'summary' | 'close' | 'sync' | 'more' | 'visit' | 'expense' | 'newCustomer' | 'customerDetail' | 'repReport' | 'pinSetup' | 'targetSetup' | 'photoCapture';
+type Tab = 'today' | 'customers' | 'sale' | 'return' | 'collection' | 'van' | 'summary' | 'close' | 'sync' | 'more' | 'visit' | 'expense' | 'newCustomer' | 'customerDetail' | 'repReport' | 'pinSetup' | 'targetSetup' | 'photoCapture' | 'notifications';
 
 const MORE_TABS: MoreTab[] = ['return', 'van', 'summary', 'close', 'sync'];
 
@@ -158,7 +159,7 @@ export default function App() {
         )}
         {tab === 'repReport' && <RepReportScreen />}
         {tab === 'pinSetup' && <PinSetupScreen onDone={() => setTab('more')} />}
-        {tab === 'photoCapture' && detailCustomer && <PhotoCaptureScreen customerId={detailCustomer} onDone={() => setTab('customerDetail')} />}
+        {tab === 'notifications' && <NotificationCenterScreen onOpenSync={() => setTab('sync')} />}
         {tab === 'more' && (
           <MoreScreen
             version={version}
@@ -166,6 +167,7 @@ export default function App() {
             onOpenReport={() => setTab('repReport')}
             onSetPin={() => setTab('pinSetup')}
             onSetTarget={() => setTab('targetSetup')}
+            onOpenNotifications={() => setTab('notifications')}
             onToggleLanguage={toggleLanguage}
             onLogout={async () => { await logout(); setSignedIn(false); }}
           />

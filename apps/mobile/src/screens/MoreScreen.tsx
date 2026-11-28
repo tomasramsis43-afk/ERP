@@ -9,13 +9,14 @@ import { useTheme } from './theme';
 export type MoreTab = 'return' | 'van' | 'summary' | 'close' | 'sync';
 
 export function MoreScreen({
-  version, onOpen, onOpenReport, onSetPin, onSetTarget, onToggleLanguage, onLogout,
+  version, onOpen, onOpenReport, onSetPin, onSetTarget, onOpenNotifications, onToggleLanguage, onLogout,
 }: {
   version: number;
   onOpen: (tab: MoreTab) => void;
   onOpenReport: () => void;
   onSetPin: () => void;
   onSetTarget: () => void;
+  onOpenNotifications: () => void;
   onToggleLanguage: () => void;
   onLogout: () => void;
 }) {
@@ -67,6 +68,7 @@ export function MoreScreen({
       {row('bar-chart-outline', t('daySummary'), () => onOpen('summary'))}
       {row('lock-closed-outline', t('closeDay'), () => onOpen('close'))}
       {row('sync-outline', t('outbox'), () => onOpen('sync'))}
+      {row('notifications-outline', t('notifications'), onOpenNotifications)}
 
       <Text style={st.section}>{t('reportTitle')}</Text>
       {row('bar-chart-outline', t('reportTitle'), onOpenReport)}
