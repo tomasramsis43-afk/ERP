@@ -2,6 +2,7 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import * as SQLite from 'expo-sqlite';
 import { ensureDeviceId } from '../core/deviceId';
+import { mergeProducts, productsSince } from '../core/catalogSync';
 import { Migration, migrate } from '../core/migrations';
 import { createSerialQueue } from '../core/serial';
 import { CustomerPrice, Product } from '../core/cart';
@@ -102,6 +103,19 @@ export const store: SyncStore = {
     const d = await db();
     return (await d.getAllAsync<Record<string, unknown>>('SELECT * FROM outbox ORDER BY clientCreatedAt')).map(rowToItem);
   },
+  async productsSince() {
+    const d = await db();
+    const get = async (key: string) => (await d.getFirstAsync<{ value: string }>('SELECT value FROM snapshot WHERE key = ?', [key]))?.value ?? null;
+    const [cursor, fullAt, products] = await Promise.all([get('productsCursor'), get('productsFullAt'), get('products')]);
+    const parse = <T,>(v: string | null): T | null => {
+      try { return v ? (JSON.parse(v) as T) : null; } catch { return null; }
+    };
+    // No stored catalogue (or an empty/unreadable one): a delta would be merged into nothing, so ask for everything.
+    const catalogue = parse<unknown[]>(products);
+    if (!Array.isArray(catalogue) || catalogue.length === 0) return null;
+    const unwrap = (v: string | null) => parse<string>(v);
+    return productsSince(unwrap(cursor), unwrap(fullAt), Date.now());
+  },
   /** Updates only the answered operations; rows added meanwhile (a sale saved during the sync) are untouched. */
   applyResults(results: ServerResult[]) {
     return write(async () => {
@@ -123,9 +137,17 @@ export const store: SyncStore = {
       await d.withTransactionAsync(async () => {
         const waiting = await d.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM outbox WHERE status = 'PENDING'");
         if ((waiting?.n ?? 0) > 0) return;
-        for (const key of ['representative', 'customers', 'customerPrices', 'products', 'vanStock', 'serverTime']) {
-          await d.runAsync('INSERT OR REPLACE INTO snapshot (key, value) VALUES (?, ?)', [key, JSON.stringify(s[key] ?? null)]);
+        const put = (key: string, value: unknown) => d.runAsync('INSERT OR REPLACE INTO snapshot (key, value) VALUES (?, ?)', [key, JSON.stringify(value ?? null)]);
+        for (const key of ['representative', 'customers', 'customerPrices', 'vanStock', 'serverTime']) await put(key, s[key]);
+        if (s.productsMode === 'DELTA') {
+          const row = await d.getFirstAsync<{ value: string }>("SELECT value FROM snapshot WHERE key = 'products'");
+          const current = row ? (JSON.parse(row.value) as Product[] | null) ?? [] : [];
+          await put('products', mergeProducts(current, (s.products as Product[] | undefined) ?? []));
+        } else {
+          await put('products', s.products);
+          await put('productsFullAt', s.serverTime); // a full catalogue restarts the 24-hour clock
         }
+        await put('productsCursor', s.serverTime); // taken by the server before it read, so nothing in between is skipped
         stored = true;
       });
       return stored;

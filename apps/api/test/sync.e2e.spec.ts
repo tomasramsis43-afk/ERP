@@ -96,6 +96,34 @@ d('offline synchronisation (requires seeded PostgreSQL)', () => {
     expect(n(r.vanStock.find((s: { productId: string }) => s.productId === productId).quantity)).toBe(50);
   });
 
+  it('incremental pull returns only changed products, flags removed ones, and rejects a bad cursor', async () => {
+    const full = (await http.get('/sync/pull').set(bearer(token)).expect(200)).body;
+    expect(full.productsMode).toBe('FULL');
+    const cursor = full.serverTime as string;
+
+    // Nothing changed since the cursor (the 2-minute overlap is moved past by asking from the future).
+    const later = new Date(Date.now() + 10 * 60_000).toISOString();
+    const none = (await http.get(`/sync/pull?productsSince=${encodeURIComponent(later)}`).set(bearer(token)).expect(200)).body;
+    expect(none.productsMode).toBe('DELTA');
+    expect(none.products).toEqual([]);
+    // Customers, prices and van stock are always complete.
+    expect(none.customers.some((c: { id: string }) => c.id === customerId)).toBe(true);
+    expect(n(none.vanStock.find((x: { productId: string }) => x.productId === productId).quantity)).toBeGreaterThanOrEqual(0);
+
+    // A product edited after the cursor comes back; deactivating it flags it so the phone can drop it.
+    await http.patch(`/products/${productId}`).set(bearer(admin)).send({ nameAr: 'صنف معدّل' }).expect(200);
+    const changed = (await http.get(`/sync/pull?productsSince=${encodeURIComponent(cursor)}`).set(bearer(token)).expect(200)).body;
+    const edited = changed.products.find((x: { id: string }) => x.id === productId);
+    expect(edited.nameAr).toBe('صنف معدّل');
+    expect(edited.isActive).toBe(true);
+    await http.patch(`/products/${productId}`).set(bearer(admin)).send({ isActive: false }).expect(200);
+    const removed = (await http.get(`/sync/pull?productsSince=${encodeURIComponent(cursor)}`).set(bearer(token)).expect(200)).body;
+    expect(removed.products.find((x: { id: string }) => x.id === productId).isActive).toBe(false);
+    await http.patch(`/products/${productId}`).set(bearer(admin)).send({ isActive: true }).expect(200);
+
+    await http.get('/sync/pull?productsSince=not-a-date').set(bearer(token)).expect(400);
+  });
+
   it('applies a batch in creation order, and replaying the same batch changes nothing', async () => {
     const cash0 = await custody();
     const stock0 = await vanQty();

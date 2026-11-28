@@ -125,5 +125,6 @@ export const syncApi: SyncApi = {
     const r = await authed<{ results: ServerResult[] }>('/sync/push', { method: 'POST', body: JSON.stringify({ deviceId, operations }) });
     return r.results;
   },
-  pull: () => authed<Snapshot>('/sync/pull'),
+  pull: (productsSince: string | null) =>
+    authed<Snapshot>(productsSince ? `/sync/pull?productsSince=${encodeURIComponent(productsSince)}` : '/sync/pull'),
 };

@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthUser, CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators';
 import { PushDto } from './dto/sync.dto';
+import { PullQueryDto } from './dto/pull-query.dto';
 import { SnapshotService } from './snapshot.service';
 import { SyncService } from './sync.service';
 
@@ -23,7 +24,7 @@ export class SyncController {
 
   @Get('pull')
   @RequirePermissions('sales:view')
-  pull(@CurrentUser() user: AuthUser) {
-    return this.snapshot.pull(user.id);
+  pull(@CurrentUser() user: AuthUser, @Query() q: PullQueryDto) {
+    return this.snapshot.pull(user.id, q.productsSince);
   }
 }

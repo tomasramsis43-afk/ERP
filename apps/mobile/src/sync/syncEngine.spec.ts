@@ -5,10 +5,11 @@ const item = (opId: string, at: string, over: Partial<OutboxItem> = {}): OutboxI
   opId, type: 'SALE', payload: {}, clientCreatedAt: at, status: 'PENDING', error: null, attempts: 0, ...over,
 });
 
-function fakeStore(initial: OutboxItem[]) {
+function fakeStore(initial: OutboxItem[], since: string | null = null) {
   const state = { outbox: initial, snapshot: null as Snapshot | null };
   const store: SyncStore = {
     loadOutbox: async () => state.outbox,
+    productsSince: async () => since,
     applyResults: async (r) => { state.outbox = applyResults(state.outbox, r); },
     saveSnapshot: async (s) => {
       if (state.outbox.some((i) => i.status === 'PENDING')) return false;
@@ -20,10 +21,10 @@ function fakeStore(initial: OutboxItem[]) {
 }
 
 function fakeApi(answer: (ops: { opId: string }[]) => ServerResult[], pullFails = false) {
-  const calls = { push: [] as string[][], pull: 0 };
+  const calls = { push: [] as string[][], pull: 0, since: [] as (string | null)[] };
   const api: SyncApi = {
     push: async (_d, ops) => { calls.push.push(ops.map((o) => o.opId)); return answer(ops); },
-    pull: async () => { calls.pull += 1; if (pullFails) throw new Error('offline'); return { serverTime: 'now' }; },
+    pull: async (since) => { calls.pull += 1; calls.since.push(since); if (pullFails) throw new Error('offline'); return { serverTime: 'now' }; },
   };
   return { api, calls };
 }
@@ -126,5 +127,24 @@ describe('synchronize', () => {
     expect(r.pulled).toBe(false);
     expect(r.pending).toBe(1);
     expect(state.snapshot).toBeNull();
+  });
+
+  it('asks for a delta when the store has a cursor, and for everything when it does not', async () => {
+    const withCursor = fakeStore([], '2026-11-28T10:00:00.000Z');
+    const a = fakeApi(applied);
+    await synchronize(a.api, withCursor.store, 'dev');
+    expect(a.calls.since).toEqual(['2026-11-28T10:00:00.000Z']);
+
+    const noCursor = fakeStore([]);
+    const b = fakeApi(applied);
+    await synchronize(b.api, noCursor.store, 'dev');
+    expect(b.calls.since).toEqual([null]);
+  });
+
+  it('does not touch the catalogue cursor when nothing was pulled (pending operations)', async () => {
+    const { store } = fakeStore([item('a', '1')], '2026-11-28T10:00:00.000Z');
+    const { api, calls } = fakeApi((ops) => ops.map((o) => ({ opId: o.opId, status: 'RETRY' as const, error: 'busy' })));
+    await synchronize(api, store, 'dev');
+    expect(calls.pull).toBe(0);
   });
 });

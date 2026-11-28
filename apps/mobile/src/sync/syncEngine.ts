@@ -3,11 +3,14 @@ import { OutboxItem, ServerResult, batches, sendable } from '../core/outbox';
 /** Server operations the engine needs; implemented over HTTP in the app and by a fake in tests. */
 export interface SyncApi {
   push(deviceId: string, operations: { opId: string; type: string; clientCreatedAt: string; payload: Record<string, unknown> }[]): Promise<ServerResult[]>;
-  pull(): Promise<Snapshot>;
+  /** `productsSince` null = the whole catalogue; a timestamp = only products changed after it. */
+  pull(productsSince: string | null): Promise<Snapshot>;
 }
 
 export interface Snapshot {
   serverTime: string;
+  /** FULL replaces the local catalogue, DELTA is merged into it. Absent = FULL. */
+  productsMode?: 'FULL' | 'DELTA';
   [key: string]: unknown;
 }
 
@@ -18,6 +21,8 @@ export interface Snapshot {
  */
 export interface SyncStore {
   loadOutbox(): Promise<OutboxItem[]>;
+  /** The `productsSince` cursor to send (null when a full catalogue refresh is due). */
+  productsSince(): Promise<string | null>;
   /** Folds the server's answers into the stored queue, touching only the operations that were answered. */
   applyResults(results: ServerResult[]): Promise<void>;
   /**
@@ -62,7 +67,7 @@ export async function synchronize(api: SyncApi, store: SyncStore, deviceId: stri
   report.pending = sendable(await store.loadOutbox()).length;
   if (report.pending > 0) return report;
   try {
-    report.pulled = await store.saveSnapshot(await api.pull());
+    report.pulled = await store.saveSnapshot(await api.pull(await store.productsSince()));
     if (!report.pulled) report.pending = sendable(await store.loadOutbox()).length;
   } catch (e) {
     report.error = e instanceof Error ? e.message : String(e);
