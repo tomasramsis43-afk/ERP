@@ -15,7 +15,7 @@ Compared with the master specification. "Missing" means no schema/API for it exi
 - Persistent failed-login lockout after 5 attempts for 15 minutes (`LoginAttempt` table, survives restarts).
 - Shared Redis-backed throttling when `REDIS_URL` is set; local in-memory fallback and `THROTTLE_TTL`/`THROTTLE_LIMIT` overrides.
 - Manual journal lines support `partyType`/`partyId` (opening balances for customers/suppliers).
-- Mobile: offline banner driven by NetInfo, plus existing sale/return/collection, van stock, day summary, and day-closing screens with offline outbox. The manual Android build workflow generates the APK with Gradle (no Expo token needed) and publishes it to the `v0.1.0-mobile-apk` GitHub release automatically.
+- Mobile: offline banner driven by NetInfo, plus existing sale/return/collection, van stock, day summary, and day-closing screens with offline outbox. The app opens on a Today dashboard with route progress and upcoming visits (see `docs/MOBILE_FIELD_APP.md`). The manual Android build workflow generates the APK with Gradle (no Expo token needed) and publishes it to the `v0.1.0-mobile-apk` GitHub release automatically.
 - Web: customer and representative detail screens now include route-visit history; representative details also show custody, vehicle stock, closings, and commissions.
 - Seed always syncs access control so new permissions reach existing deployments.
 - Cash-box day closing and physical-cash reconciliation.

@@ -19,6 +19,14 @@ export interface Customer {
   address: string | null;
   creditLimit: string;
   balance: string;
+  /** Position on the representative's route; null/absent for customers added outside a route. */
+  routeSequence?: number | null;
+}
+
+/** A visit the server already has for today, so the phone can mark the customer as visited. */
+export interface VisitToday {
+  customerId: string;
+  outcome: string;
 }
 
 export interface RepProfile {
@@ -138,7 +146,7 @@ export const store: SyncStore = {
         const waiting = await d.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM outbox WHERE status = 'PENDING'");
         if ((waiting?.n ?? 0) > 0) return;
         const put = (key: string, value: unknown) => d.runAsync('INSERT OR REPLACE INTO snapshot (key, value) VALUES (?, ?)', [key, JSON.stringify(value ?? null)]);
-        for (const key of ['representative', 'customers', 'customerPrices', 'vanStock', 'serverTime']) await put(key, s[key]);
+        for (const key of ['representative', 'customers', 'customerPrices', 'vanStock', 'visitsToday', 'serverTime']) await put(key, s[key]);
         if (s.productsMode === 'DELTA') {
           const row = await d.getFirstAsync<{ value: string }>("SELECT value FROM snapshot WHERE key = 'products'");
           const current = row ? (JSON.parse(row.value) as Product[] | null) ?? [] : [];
@@ -212,6 +220,8 @@ export const local = {
   prices: () => read<CustomerPrice[]>('customerPrices', []),
   rep: () => read<RepProfile | null>('representative', null),
   lastSync: () => read<string | null>('serverTime', null),
+  /** Today's visits as of the last successful sync; an older install simply has none. */
+  visitsToday: () => read<VisitToday[]>('visitsToday', []),
   async vanStock(): Promise<Map<string, string>> {
     const rows = await read<{ productId: string; quantity: string }[]>('vanStock', []);
     return new Map(rows.map((r) => [r.productId, r.quantity]));

@@ -1,8 +1,17 @@
+import {
+  Cairo_400Regular,
+  Cairo_500Medium,
+  Cairo_600SemiBold,
+  Cairo_700Bold,
+  Cairo_800ExtraBold,
+  useFonts,
+} from '@expo-google-fonts/cairo';
 import { useNetInfo } from '@react-native-community/netinfo';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, SafeAreaView, Text, View } from 'react-native';
+import { Alert, SafeAreaView, Text, View } from 'react-native';
 import { hasSession, logout, onSessionExpired } from './src/api/client';
+import { BottomNav, NavKey } from './src/components/BottomNav';
 import { startAutoSync } from './src/sync/syncRunner';
 import { databaseIsHealthy } from './src/db/database';
 import { Lang, getLang, setLang, t } from './src/i18n';
@@ -11,22 +20,38 @@ import { CloseDayScreen } from './src/screens/CloseDayScreen';
 import { CustomersScreen } from './src/screens/CustomersScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { DaySummaryScreen } from './src/screens/DaySummaryScreen';
+import { MoreScreen, MoreTab } from './src/screens/MoreScreen';
 import { ReturnScreen } from './src/screens/ReturnScreen';
 import { SaleScreen } from './src/screens/SaleScreen';
+import { TodayScreen } from './src/screens/TodayScreen';
 import { VanStockScreen } from './src/screens/VanStockScreen';
 import { SyncScreen } from './src/screens/SyncScreen';
 import { useTheme } from './src/screens/theme';
 
-type Tab = 'customers' | 'sale' | 'return' | 'collection' | 'van' | 'summary' | 'close' | 'sync';
+type Tab = 'today' | 'customers' | 'sale' | 'return' | 'collection' | 'van' | 'summary' | 'close' | 'sync' | 'more';
+
+const MORE_TABS: MoreTab[] = ['return', 'van', 'summary', 'close', 'sync'];
+
+/** Which bottom-bar item is highlighted for each screen. */
+function navFor(tab: Tab): NavKey {
+  if (tab === 'today' || tab === 'customers' || tab === 'sale' || tab === 'collection') return tab;
+  return 'more';
+}
 
 export default function App() {
-  const { s, c } = useTheme();
+  const { c } = useTheme();
   const net = useNetInfo();
+  const [fontsLoaded, fontError] = useFonts({
+    Cairo_400Regular,
+    Cairo_500Medium,
+    Cairo_600SemiBold,
+    Cairo_700Bold,
+    Cairo_800ExtraBold,
+  });
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
-  const [tab, setTab] = useState<Tab>('customers');
+  const [tab, setTab] = useState<Tab>('today');
   const [saleCustomer, setSaleCustomer] = useState<string | null>(null);
-  const [moreOpen, setMoreOpen] = useState(false);
   const [version, setVersion] = useState(0); // bumped after each sync/save so screens reload local data
   const [, force] = useState(0);
 
@@ -58,75 +83,56 @@ export default function App() {
     if (needsReload) Alert.alert(t('language'), 'Restart the app to apply the text direction.');
   }
 
-  if (!ready) return null;
+  const afterSave = useCallback(() => {
+    bump();
+    setTab('today');
+  }, [bump]);
+
+  if (!ready || (!fontsLoaded && !fontError)) return null;
   if (!signedIn) return <LoginScreen onDone={() => setSignedIn(true)} />;
 
-  // Four everyday tabs plus "More": eight side-by-side tabs were too crowded for one-handed use.
-  const mainTabs: [Tab, string][] = [
-    ['customers', t('customers')],
-    ['sale', t('newSale')],
-    ['collection', t('collection')],
-    ['sync', t('outbox')],
-  ];
-  const moreTabs: [Tab, string][] = [
-    ['return', t('returns')],
-    ['van', t('vanStock')],
-    ['summary', t('daySummary')],
-    ['close', t('closeDay')],
-  ];
-  const inMore = moreTabs.some(([k]) => k === tab);
-  const go = (key: Tab) => {
+  const selectNav = (key: NavKey) => {
     if (key === 'sale') setSaleCustomer(null);
     setTab(key);
-    setMoreOpen(false);
   };
-  const navItem = (key: string, label: string, active: boolean, onPress: () => void) => (
-    <Pressable
-      key={key}
-      style={{ flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}
-      onPress={onPress}
-      accessibilityRole="tab"
-      accessibilityState={{ selected: active }}
-      accessibilityLabel={label}
-    >
-      <Text numberOfLines={1} style={{ color: active ? c.primary : c.sub, fontWeight: active ? '700' : '400' }}>{label}</Text>
-    </Pressable>
-  );
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
       <StatusBar style="auto" />
-      <View style={[s.row, { padding: 8 }]}>
-        <Pressable onPress={toggleLanguage}><Text style={{ color: c.primary }}>{t('language')}</Text></Pressable>
-        <Pressable onPress={async () => { await logout(); setSignedIn(false); }}><Text style={{ color: c.danger }}>{t('logout')}</Text></Pressable>
-      </View>
       {net.isConnected === false && (
         <View style={{ backgroundColor: c.danger, paddingVertical: 6, paddingHorizontal: 8 }}>
-          <Text style={{ color: '#fff', textAlign: 'center' }}>{t('offline')} — {t('offlineHint')}</Text>
+          <Text style={{ color: '#fff', textAlign: 'center', fontSize: 12 }}>{t('offline')} — {t('offlineHint')}</Text>
         </View>
       )}
       <View style={{ flex: 1 }}>
+        {tab === 'today' && (
+          <TodayScreen
+            version={version}
+            onNewSale={(id) => { setSaleCustomer(id ?? null); setTab('sale'); }}
+            onCollection={() => setTab('collection')}
+            onReturn={() => setTab('return')}
+            onCustomers={() => setTab('customers')}
+            onSync={() => setTab('sync')}
+          />
+        )}
         {tab === 'customers' && <CustomersScreen version={version} onSell={(id) => { setSaleCustomer(id); setTab('sale'); }} />}
-        {tab === 'sale' && <SaleScreen key={saleCustomer ?? 'none'} customerId={saleCustomer} onSaved={() => { bump(); setTab('sync'); }} />}
-        {tab === 'return' && <ReturnScreen onSaved={() => { bump(); setTab('sync'); }} />}
+        {tab === 'sale' && <SaleScreen key={saleCustomer ?? 'none'} customerId={saleCustomer} onSaved={afterSave} />}
+        {tab === 'return' && <ReturnScreen onSaved={afterSave} />}
         {tab === 'van' && <VanStockScreen version={version} />}
         {tab === 'summary' && <DaySummaryScreen version={version} />}
-        {tab === 'collection' && <CollectionScreen onSaved={() => { bump(); setTab('sync'); }} />}
+        {tab === 'collection' && <CollectionScreen onSaved={afterSave} />}
         {tab === 'close' && <CloseDayScreen version={version} onClosed={bump} />}
         {tab === 'sync' && <SyncScreen onSynced={bump} />}
+        {tab === 'more' && (
+          <MoreScreen
+            version={version}
+            onOpen={(next) => { if (MORE_TABS.includes(next)) setTab(next); }}
+            onToggleLanguage={toggleLanguage}
+            onLogout={async () => { await logout(); setSignedIn(false); }}
+          />
+        )}
       </View>
-      {moreOpen ? (
-        <View style={{ borderTopWidth: 1, borderColor: c.border, backgroundColor: c.bg }}>
-          {moreTabs.map(([key, label]) => (
-            <Pressable key={key} style={{ minHeight: 52, justifyContent: 'center', paddingHorizontal: 20 }} onPress={() => go(key)} accessibilityRole="button">
-              <Text style={{ color: tab === key ? c.primary : c.text, fontWeight: tab === key ? '700' : '400' }}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
-      <View style={{ flexDirection: 'row', borderTopWidth: 1, borderColor: c.border }}>
-        {mainTabs.map(([key, label]) => navItem(key, label, tab === key && !moreOpen, () => go(key)))}
-        {navItem('more', t('more'), inMore || moreOpen, () => setMoreOpen((o) => !o))}
-      </View>
+      <BottomNav active={navFor(tab)} onSelect={selectNav} />
     </SafeAreaView>
   );
 }
